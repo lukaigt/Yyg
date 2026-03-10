@@ -35,7 +35,7 @@ function findMatchingAssets(tags: string[], allAssets: Asset[]): Asset[] {
     .map((s) => s.asset);
 }
 
-export async function createScenePlan(prompt: string, targetMinutes: number = 1): Promise<MatchedScenePlan> {
+export async function createScenePlan(prompt: string, targetMinutes: number = 1, model?: string): Promise<MatchedScenePlan> {
   const allTags = assetsDb.getAllTags();
   const allAssets = assetsDb.getAll();
 
@@ -47,7 +47,7 @@ export async function createScenePlan(prompt: string, targetMinutes: number = 1)
     console.log("No research results (Brave API may not be configured)");
   }
 
-  const plan = await generateScenePlan(prompt, allTags, targetMinutes, research);
+  const plan = await generateScenePlan(prompt, allTags, targetMinutes, research, model);
 
   const matchedScenes: MatchedScene[] = plan.scenes.map((scene) => {
     const matchedAssets = findMatchingAssets(scene.assetTags, allAssets);

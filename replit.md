@@ -45,6 +45,13 @@ db/                 # SQLite database file
 - Research is included in both parts of two-pass generation for long videos
 - Brave Search module: `app/lib/brave-search.server.ts`
 
+## AI Model Selection
+- Users can pick which OpenRouter model to use for scene planning
+- Available models defined in `app/lib/openrouter.server.ts` (AVAILABLE_MODELS array)
+- Default: Gemini 2.0 Flash (fast, cheap, good structured output)
+- Options include Gemini, GPT-4o, Claude Sonnet, DeepSeek
+- Model picker hidden by default in UI, expandable via "Change AI model" link
+
 ## Environment Variables
 - `OPENROUTER_API_KEY` - Required for AI scene planning
 - `BRAVE_SEARCH_API_KEY` - Required for web research (free at api.search.brave.com)

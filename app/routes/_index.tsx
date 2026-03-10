@@ -1,9 +1,12 @@
+import { useState } from "react";
 import { Form, useActionData, useNavigation, Link } from "@remix-run/react";
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { v4 as uuidv4 } from "uuid";
 import { projects } from "~/lib/db.server";
 import { createScenePlan } from "~/lib/scenePlanner.server";
+import { AVAILABLE_MODELS, DEFAULT_MODEL } from "~/lib/openrouter.server";
+import { useLoaderData } from "@remix-run/react";
 
 const LENGTH_MAP: Record<string, number> = {
   short: 3,
@@ -11,22 +14,30 @@ const LENGTH_MAP: Record<string, number> = {
   long: 15,
 };
 
+export async function loader() {
+  return json({ models: AVAILABLE_MODELS, defaultModel: DEFAULT_MODEL });
+}
+
 export async function action({ request }: ActionFunctionArgs) {
   const formData = await request.formData();
   const prompt = formData.get("prompt") as string;
   const lengthPref = (formData.get("length") as string) || "long";
+  const model = (formData.get("model") as string) || DEFAULT_MODEL;
   const targetMinutes = LENGTH_MAP[lengthPref] || 8;
 
   if (!prompt || !prompt.trim()) {
     return json({ error: "Please enter a topic for your video" }, { status: 400 });
   }
 
+  const validModelIds = AVAILABLE_MODELS.map(m => m.id);
+  const selectedModel = validModelIds.includes(model as any) ? model : DEFAULT_MODEL;
+
   try {
     const id = uuidv4();
     const name = prompt.trim().substring(0, 60);
     const project = projects.create({ id, name, prompt: prompt.trim() });
 
-    const scenePlan = await createScenePlan(prompt.trim(), targetMinutes);
+    const scenePlan = await createScenePlan(prompt.trim(), targetMinutes, selectedModel);
     projects.updateScenePlan(id, scenePlan);
 
     return redirect(`/project/${id}`);
@@ -40,9 +51,12 @@ export async function action({ request }: ActionFunctionArgs) {
 }
 
 export default function Index() {
+  const { models, defaultModel } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
+  const [showModelPicker, setShowModelPicker] = useState(false);
+  const [selectedModel, setSelectedModel] = useState(defaultModel);
 
   return (
     <div>
@@ -79,58 +93,134 @@ export default function Index() {
             </p>
           </div>
 
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: 8,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: "var(--text-secondary)",
+                }}
+              >
+                Video Length
+              </label>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {[
+                  { value: "short", label: "Short", desc: "2-4 min" },
+                  { value: "medium", label: "Medium", desc: "6-10 min" },
+                  { value: "long", label: "Long", desc: "10-15 min" },
+                ].map((opt) => (
+                  <label
+                    key={opt.value}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 2,
+                      padding: "8px 14px",
+                      border: "1px solid var(--border)",
+                      borderRadius: "var(--radius)",
+                      cursor: "pointer",
+                      fontSize: 13,
+                      background: "var(--bg-secondary)",
+                      minWidth: 80,
+                      textAlign: "center",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <input
+                        type="radio"
+                        name="length"
+                        value={opt.value}
+                        defaultChecked={opt.value === "long"}
+                        disabled={isSubmitting}
+                      />
+                      <span style={{ fontWeight: 600 }}>{opt.label}</span>
+                    </div>
+                    <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{opt.desc}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
           <div style={{ marginBottom: 16 }}>
-            <label
+            <button
+              type="button"
+              onClick={() => setShowModelPicker(!showModelPicker)}
               style={{
-                display: "block",
-                marginBottom: 8,
-                fontSize: 14,
-                fontWeight: 600,
-                color: "var(--text-secondary)",
+                background: "none",
+                border: "none",
+                color: "var(--primary)",
+                cursor: "pointer",
+                fontSize: 13,
+                padding: 0,
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
               }}
             >
-              Video Length
-            </label>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {[
-                { value: "short", label: "Short", desc: "2-4 min" },
-                { value: "medium", label: "Medium", desc: "6-10 min" },
-                { value: "long", label: "Long (YouTube)", desc: "10-15 min" },
-              ].map((opt) => (
-                <label
-                  key={opt.value}
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: 4,
-                    padding: "12px 20px",
-                    border: "1px solid var(--border)",
-                    borderRadius: "var(--radius)",
-                    cursor: "pointer",
-                    fontSize: 14,
-                    background: "var(--bg-secondary)",
-                    minWidth: 120,
-                    textAlign: "center",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+              {showModelPicker ? "Hide AI model options" : "Change AI model"}
+            </button>
+
+            {showModelPicker && (
+              <div style={{ marginTop: 8 }}>
+                {models.map((m: any) => (
+                  <label
+                    key={m.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 8,
+                      padding: "10px 12px",
+                      border: "1px solid var(--border)",
+                      borderRadius: "var(--radius)",
+                      cursor: "pointer",
+                      fontSize: 13,
+                      background: "var(--bg-secondary)",
+                      marginBottom: 6,
+                    }}
+                  >
                     <input
                       type="radio"
-                      name="length"
-                      value={opt.value}
-                      defaultChecked={opt.value === "long"}
+                      name="model"
+                      value={m.id}
+                      checked={selectedModel === m.id}
+                      onChange={() => setSelectedModel(m.id)}
                       disabled={isSubmitting}
+                      style={{ marginTop: 2 }}
                     />
-                    <span style={{ fontWeight: 600 }}>{opt.label}</span>
-                  </div>
-                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{opt.desc}</span>
-                </label>
-              ))}
-            </div>
-            <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>
-              This is a rough guide — the AI adjusts based on how much content the topic needs.
-            </p>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontWeight: 600 }}>{m.name}</span>
+                        <span style={{
+                          fontSize: 10,
+                          padding: "1px 6px",
+                          borderRadius: 4,
+                          background: m.tier === "free" ? "rgba(0,200,83,0.15)" : m.tier === "cheap" ? "rgba(255,209,102,0.15)" : "rgba(124,77,255,0.15)",
+                          color: m.tier === "free" ? "#00c853" : m.tier === "cheap" ? "#ffd166" : "var(--primary)",
+                          fontWeight: 600,
+                          textTransform: "uppercase",
+                        }}>
+                          {m.tier}
+                        </span>
+                      </div>
+                      <span style={{ color: "var(--text-muted)", fontSize: 12 }}>{m.desc}</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            {!showModelPicker && (
+              <input type="hidden" name="model" value={selectedModel} />
+            )}
           </div>
 
           {actionData?.error && (

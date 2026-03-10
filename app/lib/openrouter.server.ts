@@ -45,6 +45,17 @@ export interface AnimationElement {
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
+export const AVAILABLE_MODELS = [
+  { id: "google/gemini-2.0-flash-001", name: "Gemini 2.0 Flash", desc: "Fast & cheap, great for structured plans", tier: "free" },
+  { id: "google/gemini-2.5-flash-preview", name: "Gemini 2.5 Flash", desc: "Latest Gemini, better reasoning", tier: "cheap" },
+  { id: "deepseek/deepseek-chat-v3-0324", name: "DeepSeek V3", desc: "Very cheap, solid quality", tier: "cheap" },
+  { id: "openai/gpt-4o-mini", name: "GPT-4o Mini", desc: "Good balance of cost and quality", tier: "cheap" },
+  { id: "openai/gpt-4o", name: "GPT-4o", desc: "High quality all-rounder", tier: "mid" },
+  { id: "anthropic/claude-sonnet-4", name: "Claude Sonnet 4", desc: "Best narration writing quality", tier: "mid" },
+] as const;
+
+export const DEFAULT_MODEL = "google/gemini-2.0-flash-001";
+
 function buildSystemPrompt(targetMinutes: number): string {
   const lengthGuidance = targetMinutes <= 4
     ? `Aim for roughly ${targetMinutes} minutes. Create 6-15 scenes, each 3-8 seconds.`
@@ -126,7 +137,8 @@ async function callOpenRouter(
   apiKey: string,
   systemPrompt: string,
   userPrompt: string,
-  maxTokens: number
+  maxTokens: number,
+  model: string = DEFAULT_MODEL
 ): Promise<string> {
   const response = await fetch(OPENROUTER_URL, {
     method: "POST",
@@ -137,7 +149,7 @@ async function callOpenRouter(
       "X-Title": "VideoForge",
     },
     body: JSON.stringify({
-      model: "google/gemini-2.0-flash-001",
+      model,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -166,7 +178,8 @@ export async function generateScenePlan(
   prompt: string,
   availableTags: string[],
   targetMinutes: number = 8,
-  research: string = ""
+  research: string = "",
+  model: string = DEFAULT_MODEL
 ): Promise<ScenePlan> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
@@ -191,7 +204,7 @@ ${researchBlock}
 
 Plan an animated explainer video for this topic. Aim for around ${targetMinutes} minutes but let the content dictate the natural length.`;
 
-    const content = await callOpenRouter(apiKey, systemPrompt, userPrompt, 8000);
+    const content = await callOpenRouter(apiKey, systemPrompt, userPrompt, 8000, model);
     return parseScenePlan(content);
   }
 
@@ -207,8 +220,8 @@ Cover: the hook/introduction and the first major sections of the topic.
 Generate approximately ${halfTarget} minutes worth of scenes. Start at scene 1.
 Make it feel like the first half of a real YouTube video — hook the viewer and build momentum.`;
 
-  console.log(`Planning part 1 of 2 (~${halfTarget} min)...`);
-  const content1 = await callOpenRouter(apiKey, systemPrompt, userPromptPart1, 16000);
+  console.log(`Planning part 1 of 2 (~${halfTarget} min) with ${model}...`);
+  const content1 = await callOpenRouter(apiKey, systemPrompt, userPromptPart1, 16000, model);
   const plan1 = parseScenePlan(content1);
 
   const lastScene = plan1.scenes[plan1.scenes.length - 1];
@@ -229,8 +242,8 @@ Continue from scene ${nextSceneNumber}. Cover the remaining aspects of the topic
 Generate approximately ${Math.round(remainingSeconds / 60)} more minutes of content.
 Don't repeat what was already covered. Build toward a satisfying ending.`;
 
-  console.log(`Planning part 2 of 2 (~${Math.round(remainingSeconds / 60)} min)...`);
-  const content2 = await callOpenRouter(apiKey, systemPrompt, userPromptPart2, 16000);
+  console.log(`Planning part 2 of 2 (~${Math.round(remainingSeconds / 60)} min) with ${model}...`);
+  const content2 = await callOpenRouter(apiKey, systemPrompt, userPromptPart2, 16000, model);
   const plan2 = parseScenePlan(content2);
 
   const allScenes = [
