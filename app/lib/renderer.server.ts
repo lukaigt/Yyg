@@ -58,8 +58,14 @@ function resolveAssetPaths(scenePlan: any): any {
     resolved.scenes = resolved.scenes.map((scene: any) => ({
       ...scene,
       elements: (scene.elements || []).map((el: any) => {
-        if (el.resolvedSrc && !el.resolvedSrc.startsWith("file://") && !el.resolvedSrc.startsWith("http")) {
-          return { ...el, resolvedSrc: `file://${el.resolvedSrc}` };
+        if (el.resolvedSrc && !el.resolvedSrc.startsWith("http")) {
+          const absPath = el.resolvedSrc;
+          const storageIndex = absPath.indexOf("storage/");
+          if (storageIndex !== -1) {
+            const relativePath = absPath.substring(storageIndex + "storage/".length);
+            const port = process.env.PORT || "5000";
+            return { ...el, resolvedSrc: `http://127.0.0.1:${port}/storage/${relativePath}` };
+          }
         }
         return el;
       }),

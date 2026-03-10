@@ -33,8 +33,13 @@ db/                 # SQLite database file
 - `remotion/VideoComposition.tsx` - Main video composition
 - `remotion/components/` - Animation components (AnimatedAsset, AnimatedText, etc.)
 
+## Asset Serving
+- Assets are served via HTTP route `/storage/*` (see `app/routes/storage.$.ts`)
+- During Remotion rendering, assets resolve to `http://localhost:5000/storage/assets/filename.png`
+- This avoids Chromium's `file://` URL blocking in headless rendering
+
 ## Video Duration Support
-- Supports 1, 2, 5, 10, and 15 minute videos
+- Supports Short (3min), Medium (8min), and Long (15min) presets
 - Videos 5+ minutes are planned in two AI calls (first half + second half) and merged
 - Scene plans include sections for organizational structure
 - Longer videos generate 40-90 scenes with varied durations (3-15s each)
