@@ -165,7 +165,8 @@ async function callOpenRouter(
 export async function generateScenePlan(
   prompt: string,
   availableTags: string[],
-  targetMinutes: number = 8
+  targetMinutes: number = 8,
+  research: string = ""
 ): Promise<ScenePlan> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
@@ -176,12 +177,17 @@ export async function generateScenePlan(
     ? availableTags.join(", ")
     : "No assets uploaded yet — suggest descriptive tags the user should add (e.g., person, map, arrow, globe, building)";
 
+  const researchBlock = research
+    ? `\n\n${research}\n\nIMPORTANT: Use the research findings above for accurate facts, dates, names, and details in your narration. Do not make up facts — if the research doesn't cover something, keep it general rather than inventing specifics.`
+    : "";
+
   const systemPrompt = buildSystemPrompt(targetMinutes);
 
   if (targetMinutes <= 5) {
     const userPrompt = `Topic: "${prompt}"
 
 Available assets: ${tagsStr}
+${researchBlock}
 
 Plan an animated explainer video for this topic. Aim for around ${targetMinutes} minutes but let the content dictate the natural length.`;
 
@@ -194,6 +200,7 @@ Plan an animated explainer video for this topic. Aim for around ${targetMinutes}
   const userPromptPart1 = `Topic: "${prompt}"
 
 Available assets: ${tagsStr}
+${researchBlock}
 
 Plan the FIRST HALF of an animated explainer video on this topic (target ~${targetMinutes} min total).
 Cover: the hook/introduction and the first major sections of the topic.
@@ -213,6 +220,7 @@ Make it feel like the first half of a real YouTube video — hook the viewer and
   const userPromptPart2 = `Topic: "${prompt}"
 
 Available assets: ${tagsStr}
+${researchBlock}
 
 Plan the SECOND HALF of this video. The first half already covered: ${coveredSections}
 (${plan1.scenes.length} scenes, ${Math.round(part1Duration / 60)} minutes so far)

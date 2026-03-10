@@ -157,7 +157,7 @@ export default function Index() {
           >
             {isSubmitting ? (
               <>
-                <span className="spinner" /> AI is planning your video...
+                <span className="spinner" /> Researching topic & planning video...
               </>
             ) : (
               <>
@@ -175,7 +175,8 @@ export default function Index() {
             How it works:
           </p>
           <ol style={{ color: "var(--text-secondary)", fontSize: 13, paddingLeft: 20 }}>
-            <li style={{ marginBottom: 6 }}>You describe the topic — AI breaks it into scenes with narration, animations, and text</li>
+            <li style={{ marginBottom: 6 }}>You describe the topic — the system searches the web for accurate facts first</li>
+            <li style={{ marginBottom: 6 }}>AI uses those facts to plan scenes with narration, animations, and text</li>
             <li style={{ marginBottom: 6 }}>Review the scene plan — see every scene, what gets shown, what gets said</li>
             <li style={{ marginBottom: 6 }}>Hit Render — the system creates a real MP4 video with animated visuals</li>
             <li>Download and upload to YouTube</li>

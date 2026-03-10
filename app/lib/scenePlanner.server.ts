@@ -1,5 +1,6 @@
 import { assets as assetsDb, type Asset } from "./db.server";
 import { generateScenePlan, type ScenePlan, type Scene } from "./openrouter.server";
+import { researchTopic } from "./brave-search.server";
 
 export interface MatchedScene extends Scene {
   matchedAssets: Asset[];
@@ -38,7 +39,15 @@ export async function createScenePlan(prompt: string, targetMinutes: number = 1)
   const allTags = assetsDb.getAllTags();
   const allAssets = assetsDb.getAll();
 
-  const plan = await generateScenePlan(prompt, allTags, targetMinutes);
+  console.log("Researching topic via web search...");
+  const research = await researchTopic(prompt);
+  if (research) {
+    console.log(`Research complete: ${research.split("\n").length - 1} facts gathered`);
+  } else {
+    console.log("No research results (Brave API may not be configured)");
+  }
+
+  const plan = await generateScenePlan(prompt, allTags, targetMinutes, research);
 
   const matchedScenes: MatchedScene[] = plan.scenes.map((scene) => {
     const matchedAssets = findMatchingAssets(scene.assetTags, allAssets);

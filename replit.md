@@ -39,8 +39,15 @@ db/                 # SQLite database file
 - Scene plans include sections for organizational structure
 - Longer videos generate 40-90 scenes with varied durations (3-15s each)
 
+## Web Research Pipeline
+- Before AI planning, the system searches Brave Search for real facts about the topic
+- Search results (facts, dates, names) are fed into the AI prompt for accuracy
+- Research is included in both parts of two-pass generation for long videos
+- Brave Search module: `app/lib/brave-search.server.ts`
+
 ## Environment Variables
 - `OPENROUTER_API_KEY` - Required for AI scene planning
+- `BRAVE_SEARCH_API_KEY` - Required for web research (free at api.search.brave.com)
 - `PORT` - Server port (default 5000 dev, 3000 production)
 
 ## Deployment
