@@ -46,57 +46,58 @@ export interface AnimationElement {
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 function buildSystemPrompt(targetMinutes: number): string {
-  const sceneCount = targetMinutes <= 2
-    ? "4-8"
-    : targetMinutes <= 5
-    ? "15-25"
+  const lengthGuidance = targetMinutes <= 4
+    ? `Aim for roughly ${targetMinutes} minutes. Create 6-15 scenes, each 3-8 seconds.`
     : targetMinutes <= 10
-    ? "40-60"
-    : "60-90";
+    ? `Aim for roughly ${targetMinutes} minutes. Create 25-50 scenes. Vary scene durations — quick scenes (3-5s) for transitions, longer scenes (8-15s) for detailed explanations.`
+    : `Aim for roughly ${targetMinutes} minutes. Create 40-70 scenes. Vary scene durations — quick scenes (3-5s) for transitions, longer scenes (8-15s) for detailed explanations.`;
 
-  const sceneDuration = targetMinutes <= 2 ? "3-6" : "5-15";
+  return `You are a video scene planner for animated explainer videos in the style of The Infographics Show or Kurzgesagt on YouTube.
 
-  return `You are a video scene planner for animated explainer videos in the style of The Infographics Show or CGP Grey on YouTube. You create structured scene plans with real motion animations — objects sliding, bouncing, rotating across the screen, text animating in with effects, smooth transitions between scenes.
+Your job: take a topic and turn it into a full structured scene plan. You decide the story structure, what to cover, how to explain it, and how to keep it engaging. Think like a YouTube scriptwriter — hook the viewer, explain things clearly, use visual variety.
 
-You will be given a topic, target video length, and a list of available asset tags from the user's library. Create a detailed scene plan that fills the requested duration.
+You will receive a topic description (could be brief like "history of coffee" or detailed with specific points to cover), available visual assets, and a rough length target.
 
-IMPORTANT RULES:
-- Target video length: approximately ${targetMinutes} minutes
-- Create ${sceneCount} scenes to fill this duration
-- Each scene should be ${sceneDuration} seconds long
-- VARY scene durations — some scenes are quick (3-5s for transitions/emphasis), others are longer (8-15s for detailed explanations)
-- Structure the video with clear sections: Introduction, main content sections, and conclusion
-- Use available asset tags when possible, but you can suggest tags that might not exist yet
-- Every scene must have at least one animated element with real motion (not just static display)
-- Use varied animations: slides, bounces, fades, scales, spins — cycle through them, don't repeat the same one 3 times in a row
-- Text overlays should be concise (max 10 words per overlay)
-- Use contrasting colors for text on backgrounds
-- Background colors should be dark, professional tones (hex codes) — vary them between sections to create visual variety
-- Positions are percentages: x=0 is left edge, x=100 is right, y=0 is top, y=100 is bottom, center is x=50,y=50
-- Each scene should have 1-3 animated elements and 1-2 text overlays
-- Include section title scenes at the start of each major section (larger text, bold animation)
-- End with a proper conclusion/summary scene
+RULES FOR SCENE PLANNING:
+- ${lengthGuidance}
+- The total duration should be NATURAL for the topic — don't pad or rush. If a topic naturally fits 7 minutes, make it 7 minutes even if the target says 10. Better to be engaging than to fill time.
+- Structure the video with clear sections: hook/intro, main content broken into logical parts, conclusion
+- Write narration text as if it's a real YouTube script — conversational, interesting, not robotic
+- Every scene needs at least one animated visual element with real motion (sliding, bouncing, scaling, rotating)
+- Vary animations — cycle through slides, bounces, fades, scales, spins. Don't use the same one 3 times in a row
+- Text overlays: max 10 words each, use them for key terms, numbers, names
+- Background colors: dark professional tones (hex codes), vary between sections
+- Positions are percentages: x=0 left, x=100 right, y=0 top, y=100 bottom, center is x=50,y=50
+- 1-3 animated elements per scene, 1-2 text overlays per scene
+- Section title scenes at major transitions (larger text, bold animation)
+- Start with a hook, end with a proper conclusion
 
-RESPOND WITH ONLY VALID JSON matching this exact structure:
+ASSET MATCHING:
+- You'll get a list of available asset tags from the user's library
+- Match scene visuals to available assets when possible
+- If no good match exists, suggest descriptive tags — the user can add those assets later
+- Be creative with reusing assets in different contexts (a "person" asset works for many scenes)
+
+RESPOND WITH ONLY VALID JSON:
 {
   "title": "Video Title",
   "totalDuration": <sum of all scene durations in seconds>,
   "sections": [
     {"title": "Introduction", "startScene": 1, "endScene": 3},
-    {"title": "Section Title", "startScene": 4, "endScene": 10}
+    {"title": "Section Name", "startScene": 4, "endScene": 10}
   ],
   "scenes": [
     {
       "sceneNumber": 1,
       "duration": 5,
       "section": "Introduction",
-      "narrationText": "What the narrator would say during this scene — write enough text to fill the scene duration naturally",
-      "visualDescription": "Brief description of what happens visually",
+      "narrationText": "Full narration script for this scene",
+      "visualDescription": "What the viewer sees happening",
       "assetTags": ["tag1", "tag2"],
       "backgroundColor": "#1a1a2e",
       "textOverlays": [
         {
-          "text": "Short Title Text",
+          "text": "Title Text",
           "position": "top",
           "fontSize": 48,
           "animation": "slideIn",
@@ -164,7 +165,7 @@ async function callOpenRouter(
 export async function generateScenePlan(
   prompt: string,
   availableTags: string[],
-  targetMinutes: number = 1
+  targetMinutes: number = 8
 ): Promise<ScenePlan> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
@@ -173,76 +174,83 @@ export async function generateScenePlan(
 
   const tagsStr = availableTags.length > 0
     ? availableTags.join(", ")
-    : "No assets uploaded yet — suggest tags the user should get";
+    : "No assets uploaded yet — suggest descriptive tags the user should add (e.g., person, map, arrow, globe, building)";
+
+  const systemPrompt = buildSystemPrompt(targetMinutes);
 
   if (targetMinutes <= 5) {
-    const systemPrompt = buildSystemPrompt(targetMinutes);
     const userPrompt = `Topic: "${prompt}"
-Target length: ${targetMinutes} minutes
-Available asset tags in the library: ${tagsStr}
 
-Create a detailed animated explainer video scene plan for this topic. Make sure the total scene durations add up to approximately ${targetMinutes * 60} seconds.`;
+Available assets: ${tagsStr}
 
-    const maxTokens = targetMinutes <= 2 ? 4000 : 8000;
-    const content = await callOpenRouter(apiKey, systemPrompt, userPrompt, maxTokens);
+Plan an animated explainer video for this topic. Aim for around ${targetMinutes} minutes but let the content dictate the natural length.`;
+
+    const content = await callOpenRouter(apiKey, systemPrompt, userPrompt, 8000);
     return parseScenePlan(content);
   }
 
-  const systemPrompt = buildSystemPrompt(targetMinutes);
-  const halfDuration = Math.ceil(targetMinutes / 2);
+  const halfTarget = Math.ceil(targetMinutes / 2);
 
   const userPromptPart1 = `Topic: "${prompt}"
-Target length: ${targetMinutes} minutes total
-THIS IS PART 1 OF 2 — generate the first ${halfDuration} minutes worth of scenes (approximately ${halfDuration * 60} seconds).
-Start with scene 1 (Introduction) and cover the first half of the topic content.
-Available asset tags in the library: ${tagsStr}
 
-Create a detailed animated explainer video scene plan. Make sure durations add up to approximately ${halfDuration * 60} seconds.`;
+Available assets: ${tagsStr}
 
-  console.log(`Generating part 1 of 2 for ${targetMinutes}-minute video...`);
+Plan the FIRST HALF of an animated explainer video on this topic (target ~${targetMinutes} min total).
+Cover: the hook/introduction and the first major sections of the topic.
+Generate approximately ${halfTarget} minutes worth of scenes. Start at scene 1.
+Make it feel like the first half of a real YouTube video — hook the viewer and build momentum.`;
+
+  console.log(`Planning part 1 of 2 (~${halfTarget} min)...`);
   const content1 = await callOpenRouter(apiKey, systemPrompt, userPromptPart1, 16000);
   const plan1 = parseScenePlan(content1);
 
   const lastScene = plan1.scenes[plan1.scenes.length - 1];
   const nextSceneNumber = lastScene ? lastScene.sceneNumber + 1 : 1;
   const part1Duration = plan1.scenes.reduce((acc, s) => acc + s.duration, 0);
-  const remainingDuration = Math.max(60, (targetMinutes * 60) - part1Duration);
+  const remainingSeconds = Math.max(60, (targetMinutes * 60) - part1Duration);
+  const coveredSections = plan1.sections?.map(s => s.title).join(", ") || "Introduction and first sections";
 
   const userPromptPart2 = `Topic: "${prompt}"
-Target length: ${targetMinutes} minutes total
-THIS IS PART 2 OF 2 — generate the remaining scenes (approximately ${remainingDuration} seconds worth).
-Continue from scene number ${nextSceneNumber}. Cover the second half of the topic and end with a conclusion/summary.
-The first part covered: ${plan1.sections?.map(s => s.title).join(", ") || plan1.scenes.slice(0, 3).map(s => s.visualDescription).join(", ")}
-Available asset tags in the library: ${tagsStr}
 
-Create the remaining scenes. Start scene numbering at ${nextSceneNumber}. Make sure durations add up to approximately ${remainingDuration} seconds.`;
+Available assets: ${tagsStr}
 
-  console.log(`Generating part 2 of 2...`);
+Plan the SECOND HALF of this video. The first half already covered: ${coveredSections}
+(${plan1.scenes.length} scenes, ${Math.round(part1Duration / 60)} minutes so far)
+
+Continue from scene ${nextSceneNumber}. Cover the remaining aspects of the topic and end with a strong conclusion/summary.
+Generate approximately ${Math.round(remainingSeconds / 60)} more minutes of content.
+Don't repeat what was already covered. Build toward a satisfying ending.`;
+
+  console.log(`Planning part 2 of 2 (~${Math.round(remainingSeconds / 60)} min)...`);
   const content2 = await callOpenRouter(apiKey, systemPrompt, userPromptPart2, 16000);
   const plan2 = parseScenePlan(content2);
 
+  const allScenes = [
+    ...plan1.scenes,
+    ...plan2.scenes.map((s, i) => ({
+      ...s,
+      sceneNumber: nextSceneNumber + i,
+    })),
+  ];
+
+  const part1SceneCount = plan1.scenes.length;
+  const allSections = [
+    ...(plan1.sections || []),
+    ...(plan2.sections || []).map(s => ({
+      ...s,
+      startScene: s.startScene + part1SceneCount,
+      endScene: s.endScene + part1SceneCount,
+    })),
+  ];
+
   const combinedPlan: ScenePlan = {
     title: plan1.title,
-    totalDuration: plan1.scenes.reduce((acc, s) => acc + s.duration, 0) +
-                   plan2.scenes.reduce((acc, s) => acc + s.duration, 0),
-    sections: [
-      ...(plan1.sections || []),
-      ...(plan2.sections || []).map(s => ({
-        ...s,
-        startScene: s.startScene + (plan1.scenes.length),
-        endScene: s.endScene + (plan1.scenes.length),
-      })),
-    ],
-    scenes: [
-      ...plan1.scenes,
-      ...plan2.scenes.map((s, i) => ({
-        ...s,
-        sceneNumber: nextSceneNumber + i,
-      })),
-    ],
+    totalDuration: allScenes.reduce((acc, s) => acc + s.duration, 0),
+    sections: allSections,
+    scenes: allScenes,
   };
 
-  console.log(`Combined plan: ${combinedPlan.scenes.length} scenes, ${combinedPlan.totalDuration}s total`);
+  console.log(`Final plan: ${combinedPlan.scenes.length} scenes, ${Math.round(combinedPlan.totalDuration / 60)} minutes`);
   return combinedPlan;
 }
 

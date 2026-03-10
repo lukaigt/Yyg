@@ -5,12 +5,17 @@ import { v4 as uuidv4 } from "uuid";
 import { projects } from "~/lib/db.server";
 import { createScenePlan } from "~/lib/scenePlanner.server";
 
+const LENGTH_MAP: Record<string, number> = {
+  short: 3,
+  medium: 8,
+  long: 15,
+};
+
 export async function action({ request }: ActionFunctionArgs) {
   const formData = await request.formData();
   const prompt = formData.get("prompt") as string;
-  const allowedDurations = [1, 2, 5, 10, 15];
-  const rawMinutes = parseInt(formData.get("targetMinutes") as string) || 1;
-  const targetMinutes = allowedDurations.includes(rawMinutes) ? rawMinutes : 1;
+  const lengthPref = (formData.get("length") as string) || "long";
+  const targetMinutes = LENGTH_MAP[lengthPref] || 8;
 
   if (!prompt || !prompt.trim()) {
     return json({ error: "Please enter a topic for your video" }, { status: 400 });
@@ -43,7 +48,7 @@ export default function Index() {
     <div>
       <div className="page-header">
         <h2>Create New Video</h2>
-        <p>Enter a topic and let AI plan your animated explainer video</p>
+        <p>Describe what your video should be about and the AI will plan the whole thing</p>
       </div>
 
       <div className="card" style={{ maxWidth: 720 }}>
@@ -59,21 +64,23 @@ export default function Index() {
                 color: "var(--text-secondary)",
               }}
             >
-              Video Topic
+              What should the video be about?
             </label>
             <textarea
               id="prompt"
               name="prompt"
-              placeholder="e.g., How to teach your dog to sit down in 5 easy steps"
-              rows={4}
-              style={{ width: "100%", minHeight: 120 }}
+              placeholder={"e.g., The rise and fall of Alexander the Great — from Macedonia to conquering Persia, Egypt, and beyond. Cover his key battles, his generals, and what happened after his death."}
+              rows={5}
+              style={{ width: "100%", minHeight: 140 }}
               disabled={isSubmitting}
             />
+            <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>
+              The more detail you give, the better the video. You can be brief ("history of coffee") or detailed with specific points you want covered.
+            </p>
           </div>
 
           <div style={{ marginBottom: 16 }}>
             <label
-              htmlFor="targetMinutes"
               style={{
                 display: "block",
                 marginBottom: 8,
@@ -82,43 +89,47 @@ export default function Index() {
                 color: "var(--text-secondary)",
               }}
             >
-              Target Duration
+              Video Length
             </label>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {[
-                { value: 1, label: "1 min" },
-                { value: 2, label: "2 min" },
-                { value: 5, label: "5 min" },
-                { value: 10, label: "10 min" },
-                { value: 15, label: "15 min" },
+                { value: "short", label: "Short", desc: "2-4 min" },
+                { value: "medium", label: "Medium", desc: "6-10 min" },
+                { value: "long", label: "Long (YouTube)", desc: "10-15 min" },
               ].map((opt) => (
                 <label
                   key={opt.value}
                   style={{
                     display: "flex",
+                    flexDirection: "column",
                     alignItems: "center",
-                    gap: 6,
-                    padding: "8px 16px",
+                    gap: 4,
+                    padding: "12px 20px",
                     border: "1px solid var(--border)",
                     borderRadius: "var(--radius)",
                     cursor: "pointer",
                     fontSize: 14,
                     background: "var(--bg-secondary)",
+                    minWidth: 120,
+                    textAlign: "center",
                   }}
                 >
-                  <input
-                    type="radio"
-                    name="targetMinutes"
-                    value={opt.value}
-                    defaultChecked={opt.value === 10}
-                    disabled={isSubmitting}
-                  />
-                  {opt.label}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      type="radio"
+                      name="length"
+                      value={opt.value}
+                      defaultChecked={opt.value === "long"}
+                      disabled={isSubmitting}
+                    />
+                    <span style={{ fontWeight: 600 }}>{opt.label}</span>
+                  </div>
+                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{opt.desc}</span>
                 </label>
               ))}
             </div>
             <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>
-              Longer videos generate more scenes. 10+ min videos are planned in sections for best results.
+              This is a rough guide — the AI adjusts based on how much content the topic needs.
             </p>
           </div>
 
@@ -146,14 +157,14 @@ export default function Index() {
           >
             {isSubmitting ? (
               <>
-                <span className="spinner" /> Planning Video (this may take a minute for longer videos)...
+                <span className="spinner" /> AI is planning your video...
               </>
             ) : (
               <>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <polygon points="13 2 3 14 12 14 11 22 21 10 12 10" />
                 </svg>
-                Generate Scene Plan
+                Plan My Video
               </>
             )}
           </button>
@@ -161,14 +172,14 @@ export default function Index() {
 
         <div style={{ marginTop: 24, padding: "16px 0", borderTop: "1px solid var(--border)" }}>
           <p className="text-sm text-muted" style={{ marginBottom: 12 }}>
-            Tips for better results:
+            How it works:
           </p>
-          <ul style={{ color: "var(--text-secondary)", fontSize: 13, paddingLeft: 20 }}>
-            <li style={{ marginBottom: 4 }}>Be specific about what the video should explain</li>
-            <li style={{ marginBottom: 4 }}>Upload relevant assets to your library first for best matching</li>
-            <li style={{ marginBottom: 4 }}>Include the number of steps if it's a how-to video</li>
-            <li>Keep topics focused — one subject per video works best</li>
-          </ul>
+          <ol style={{ color: "var(--text-secondary)", fontSize: 13, paddingLeft: 20 }}>
+            <li style={{ marginBottom: 6 }}>You describe the topic — AI breaks it into scenes with narration, animations, and text</li>
+            <li style={{ marginBottom: 6 }}>Review the scene plan — see every scene, what gets shown, what gets said</li>
+            <li style={{ marginBottom: 6 }}>Hit Render — the system creates a real MP4 video with animated visuals</li>
+            <li>Download and upload to YouTube</li>
+          </ol>
         </div>
       </div>
     </div>
