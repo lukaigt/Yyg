@@ -1,0 +1,13 @@
+services:
+  videoforge:
+    build: .
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
+    env_file:
+      - .env
+    volumes:
+      - ./storage:/app/storage
+      - ./db:/app/db
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production

@@ -131,3 +131,20 @@ dist
 
 # Replit debugger
 .breakpoints
+
+# VideoForge data (persisted on VPS, not in repo)
+storage/assets/*
+storage/renders/*
+db/*.sqlite
+!storage/assets/.gitkeep
+!storage/renders/.gitkeep
+!db/.gitkeep
+
+# Remix build output
+build/
+
+# Test assets
+test-assets/
+
+# Remotion temp
+.remotion/
