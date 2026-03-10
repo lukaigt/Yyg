@@ -34,11 +34,11 @@ function findMatchingAssets(tags: string[], allAssets: Asset[]): Asset[] {
     .map((s) => s.asset);
 }
 
-export async function createScenePlan(prompt: string): Promise<MatchedScenePlan> {
+export async function createScenePlan(prompt: string, targetMinutes: number = 1): Promise<MatchedScenePlan> {
   const allTags = assetsDb.getAllTags();
   const allAssets = assetsDb.getAll();
 
-  const plan = await generateScenePlan(prompt, allTags);
+  const plan = await generateScenePlan(prompt, allTags, targetMinutes);
 
   const matchedScenes: MatchedScene[] = plan.scenes.map((scene) => {
     const matchedAssets = findMatchingAssets(scene.assetTags, allAssets);

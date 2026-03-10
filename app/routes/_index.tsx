@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Form, useActionData, useNavigation, Link } from "@remix-run/react";
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
@@ -9,6 +8,9 @@ import { createScenePlan } from "~/lib/scenePlanner.server";
 export async function action({ request }: ActionFunctionArgs) {
   const formData = await request.formData();
   const prompt = formData.get("prompt") as string;
+  const allowedDurations = [1, 2, 5, 10, 15];
+  const rawMinutes = parseInt(formData.get("targetMinutes") as string) || 1;
+  const targetMinutes = allowedDurations.includes(rawMinutes) ? rawMinutes : 1;
 
   if (!prompt || !prompt.trim()) {
     return json({ error: "Please enter a topic for your video" }, { status: 400 });
@@ -19,7 +21,7 @@ export async function action({ request }: ActionFunctionArgs) {
     const name = prompt.trim().substring(0, 60);
     const project = projects.create({ id, name, prompt: prompt.trim() });
 
-    const scenePlan = await createScenePlan(prompt.trim());
+    const scenePlan = await createScenePlan(prompt.trim(), targetMinutes);
     projects.updateScenePlan(id, scenePlan);
 
     return redirect(`/project/${id}`);
@@ -69,6 +71,57 @@ export default function Index() {
             />
           </div>
 
+          <div style={{ marginBottom: 16 }}>
+            <label
+              htmlFor="targetMinutes"
+              style={{
+                display: "block",
+                marginBottom: 8,
+                fontSize: 14,
+                fontWeight: 600,
+                color: "var(--text-secondary)",
+              }}
+            >
+              Target Duration
+            </label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {[
+                { value: 1, label: "1 min" },
+                { value: 2, label: "2 min" },
+                { value: 5, label: "5 min" },
+                { value: 10, label: "10 min" },
+                { value: 15, label: "15 min" },
+              ].map((opt) => (
+                <label
+                  key={opt.value}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "8px 16px",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--radius)",
+                    cursor: "pointer",
+                    fontSize: 14,
+                    background: "var(--bg-secondary)",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="targetMinutes"
+                    value={opt.value}
+                    defaultChecked={opt.value === 10}
+                    disabled={isSubmitting}
+                  />
+                  {opt.label}
+                </label>
+              ))}
+            </div>
+            <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>
+              Longer videos generate more scenes. 10+ min videos are planned in sections for best results.
+            </p>
+          </div>
+
           {actionData?.error && (
             <div
               style={{
@@ -93,7 +146,7 @@ export default function Index() {
           >
             {isSubmitting ? (
               <>
-                <span className="spinner" /> Generating Scene Plan...
+                <span className="spinner" /> Planning Video (this may take a minute for longer videos)...
               </>
             ) : (
               <>

@@ -33,6 +33,12 @@ db/                 # SQLite database file
 - `remotion/VideoComposition.tsx` - Main video composition
 - `remotion/components/` - Animation components (AnimatedAsset, AnimatedText, etc.)
 
+## Video Duration Support
+- Supports 1, 2, 5, 10, and 15 minute videos
+- Videos 5+ minutes are planned in two AI calls (first half + second half) and merged
+- Scene plans include sections for organizational structure
+- Longer videos generate 40-90 scenes with varied durations (3-15s each)
+
 ## Environment Variables
 - `OPENROUTER_API_KEY` - Required for AI scene planning
 - `PORT` - Server port (default 5000 dev, 3000 production)

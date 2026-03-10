@@ -182,9 +182,33 @@ export default function ProjectDetail() {
 
       {project.scene_plan ? (
         <div>
-          <h3 style={{ fontSize: 18, marginBottom: 16 }}>
-            Scene Plan — {project.scene_plan.scenes?.length || 0} Scenes
-          </h3>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <h3 style={{ fontSize: 18 }}>
+              Scene Plan — {project.scene_plan.scenes?.length || 0} Scenes
+            </h3>
+            <span className="text-muted" style={{ fontSize: 14 }}>
+              Total: {Math.round((project.scene_plan.totalDuration || project.scene_plan.scenes?.reduce((a: number, s: any) => a + (s.duration || 0), 0) || 0) / 60 * 10) / 10} min
+              ({project.scene_plan.totalDuration || project.scene_plan.scenes?.reduce((a: number, s: any) => a + (s.duration || 0), 0) || 0}s)
+            </span>
+          </div>
+
+          {project.scene_plan.sections && project.scene_plan.sections.length > 0 && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+              {project.scene_plan.sections.map((sec: any, i: number) => (
+                <span key={i} style={{
+                  padding: "4px 12px",
+                  background: "rgba(124, 77, 255, 0.15)",
+                  color: "var(--primary)",
+                  borderRadius: "var(--radius)",
+                  fontSize: 13,
+                  fontWeight: 500,
+                }}>
+                  {sec.title}
+                </span>
+              ))}
+            </div>
+          )}
+
           {project.scene_plan.scenes?.map((scene: any, index: number) => (
             <div key={index} className="scene-card">
               <div className="scene-card-header">
@@ -192,7 +216,10 @@ export default function ProjectDetail() {
                   <span className="scene-number">{scene.sceneNumber}</span>
                   <div>
                     <p style={{ fontWeight: 600, fontSize: 14 }}>{scene.visualDescription}</p>
-                    <p className="text-sm text-muted">{scene.duration}s &middot; {scene.transition} transition</p>
+                    <p className="text-sm text-muted">
+                      {scene.duration}s &middot; {scene.transition} transition
+                      {scene.section && <> &middot; {scene.section}</>}
+                    </p>
                   </div>
                 </div>
               </div>
