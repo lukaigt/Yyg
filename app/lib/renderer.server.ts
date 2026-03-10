@@ -1,8 +1,32 @@
 import path from "path";
 import fs from "fs";
+import { execSync } from "child_process";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { renders, projects } from "./db.server";
+
+function findChromiumPath(): string | undefined {
+  try {
+    const result = execSync("which chromium", { encoding: "utf-8" }).trim();
+    if (result && fs.existsSync(result)) return result;
+  } catch {}
+  try {
+    const result = execSync("which chromium-browser", { encoding: "utf-8" }).trim();
+    if (result && fs.existsSync(result)) return result;
+  } catch {}
+  try {
+    const result = execSync("which google-chrome", { encoding: "utf-8" }).trim();
+    if (result && fs.existsSync(result)) return result;
+  } catch {}
+  return undefined;
+}
+
+const CHROMIUM_PATH = findChromiumPath();
+if (CHROMIUM_PATH) {
+  console.log(`Using system Chromium: ${CHROMIUM_PATH}`);
+} else {
+  console.log("No system Chromium found, Remotion will download its own");
+}
 
 const RENDERS_DIR = path.join(process.cwd(), "storage", "renders");
 
@@ -68,10 +92,13 @@ export async function renderVideo(
     );
     const totalFrames = Math.round(totalDuration * FPS);
 
+    const browserExecutable = CHROMIUM_PATH || undefined;
+
     const composition = await selectComposition({
       serveUrl: bundlePath,
       id: "VideoComposition",
       inputProps: { scenePlan: resolvedPlan },
+      browserExecutable,
     });
 
     composition.durationInFrames = totalFrames;
@@ -88,6 +115,7 @@ export async function renderVideo(
       codec: "h264",
       outputLocation: outputPath,
       inputProps: { scenePlan: resolvedPlan },
+      browserExecutable,
       onProgress: ({ progress }) => {
         const pct = Math.round(20 + progress * 75);
         renders.updateProgress(renderId, pct);

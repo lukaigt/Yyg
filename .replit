@@ -7,7 +7,7 @@ requiredFiles = [".replit", "replit.nix", "package.json", "package-lock.json"]
 
 [nix]
 channel = "stable-24_11"
-packages = ["ffmpeg", "chromium"]
+packages = ["ffmpeg", "chromium", "glib", "nss", "nspr", "at-spi2-atk", "cups", "dbus", "expat", "libdrm", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "xorg.libxcb", "mesa", "pango", "cairo", "alsa-lib", "atk", "gtk3"]
 
 [deployment]
 run = ["node", "index.js"]
@@ -40,6 +40,10 @@ waitForPort = 5000
 
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[ports]]
+localPort = 3000
+externalPort = 3002
 
 [[ports]]
 localPort = 5000
