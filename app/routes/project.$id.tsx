@@ -5,6 +5,7 @@ import { json } from "@remix-run/node";
 import { projects as projectsDb, renders as rendersDb, assets as assetsDb } from "~/lib/db.server";
 import { v4 as uuidv4 } from "uuid";
 import { renderVideo } from "~/lib/renderer.server";
+import { AVAILABLE_VOICES, DEFAULT_VOICE } from "~/lib/tts.server";
 
 export async function loader({ params }: LoaderFunctionArgs) {
   const project = projectsDb.getById(params.id!);
@@ -13,7 +14,7 @@ export async function loader({ params }: LoaderFunctionArgs) {
   }
   const projectRenders = rendersDb.getByProjectId(params.id!);
   const allAssets = assetsDb.getAll();
-  return json({ project, renders: projectRenders, assets: allAssets });
+  return json({ project, renders: projectRenders, assets: allAssets, voices: AVAILABLE_VOICES, defaultVoice: DEFAULT_VOICE });
 }
 
 export async function action({ request, params }: ActionFunctionArgs) {
@@ -25,6 +26,10 @@ export async function action({ request, params }: ActionFunctionArgs) {
     if (!project || !project.scene_plan) {
       return json({ error: "No scene plan to render" }, { status: 400 });
     }
+
+    const rawVoiceId = (formData.get("voiceId") as string) || DEFAULT_VOICE;
+    const validVoiceIds = AVAILABLE_VOICES.map(v => v.id);
+    const voiceId = validVoiceIds.includes(rawVoiceId as any) ? rawVoiceId : DEFAULT_VOICE;
 
     const allAssets = assetsDb.getAll();
     const resolvedPlan = { ...project.scene_plan };
@@ -47,7 +52,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
     rendersDb.create({ id: renderId, project_id: project.id });
     projectsDb.updateStatus(project.id, "rendering");
 
-    renderVideo(renderId, project.id, resolvedPlan).catch((err) => {
+    renderVideo(renderId, project.id, resolvedPlan, voiceId).catch((err) => {
       console.error("Background render failed:", err);
     });
 
@@ -69,10 +74,11 @@ export async function action({ request, params }: ActionFunctionArgs) {
 }
 
 export default function ProjectDetail() {
-  const { project, renders, assets } = useLoaderData<typeof loader>();
+  const { project, renders, assets, voices, defaultVoice } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const [activeRender, setActiveRender] = useState<any>(null);
   const [trackingRenderId, setTrackingRenderId] = useState<string | null>(null);
+  const [selectedVoice, setSelectedVoice] = useState(defaultVoice);
 
   const latestRender = renders[0];
   const isSubmitting = fetcher.state === "submitting";
@@ -105,7 +111,7 @@ export default function ProjectDetail() {
   }, [trackingRenderId, latestRender]);
 
   const handleRender = () => {
-    fetcher.submit({ intent: "render" }, { method: "post" });
+    fetcher.submit({ intent: "render", voiceId: selectedVoice }, { method: "post" });
   };
 
   return (
@@ -177,6 +183,55 @@ export default function ProjectDetail() {
         >
           <p style={{ color: "var(--danger)", fontWeight: 600 }}>Render Failed</p>
           <p className="text-sm text-muted mt-2">{latestRender.error_message}</p>
+        </div>
+      )}
+
+      {project.scene_plan && (
+        <div className="card mb-4">
+          <h3 style={{ fontSize: 16, marginBottom: 12 }}>Narration Voice</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 8 }}>
+            {voices.map((v: any) => (
+              <label
+                key={v.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "10px 14px",
+                  border: selectedVoice === v.id ? "2px solid var(--primary)" : "1px solid var(--border)",
+                  borderRadius: "var(--radius)",
+                  cursor: "pointer",
+                  background: selectedVoice === v.id ? "rgba(124, 77, 255, 0.08)" : "var(--bg-secondary)",
+                  transition: "all 0.15s",
+                }}
+              >
+                <input
+                  type="radio"
+                  name="voiceSelect"
+                  value={v.id}
+                  checked={selectedVoice === v.id}
+                  onChange={() => setSelectedVoice(v.id)}
+                  style={{ display: "none" }}
+                />
+                <div style={{
+                  width: 32, height: 32, borderRadius: "50%",
+                  background: v.gender === "male" ? "rgba(100, 149, 237, 0.2)" : "rgba(255, 105, 180, 0.2)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 14, flexShrink: 0,
+                }}>
+                  {v.gender === "male" ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={v.gender === "male" ? "#6495ED" : "#FF69B4"} strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FF69B4" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  )}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>{v.name}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{v.desc}</div>
+                </div>
+              </label>
+            ))}
+          </div>
         </div>
       )}
 

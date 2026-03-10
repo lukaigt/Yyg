@@ -33,6 +33,15 @@ db/                 # SQLite database file
 - `remotion/VideoComposition.tsx` - Main video composition
 - `remotion/components/` - Animation components (AnimatedAsset, AnimatedText, etc.)
 
+## Voiceover (TTS)
+- Uses Microsoft Edge TTS via `msedge-tts` package — completely free, no API key needed
+- 6 available voices (3 male, 3 female) defined in `app/lib/tts.server.ts`
+- Default voice: Andrew (en-US-AndrewMultilingualNeural)
+- Voice selector on project page lets users choose before rendering
+- MP3 files generated per scene, stored in `storage/voiceover/{renderId}/`
+- Audio is embedded into the final MP4 via Remotion's `<Audio>` component
+- Voiceover generation happens before the Remotion render step
+
 ## Asset Serving
 - Assets are served via HTTP route `/storage/*` (see `app/routes/storage.$.ts`)
 - During Remotion rendering, assets resolve to `http://localhost:5000/storage/assets/filename.png`

@@ -6,7 +6,7 @@ import { renderVideo } from "~/lib/renderer.server";
 
 export async function action({ request }: ActionFunctionArgs) {
   const body = await request.json();
-  const { projectId } = body;
+  const { projectId, voiceId } = body;
 
   const project = projects.getById(projectId);
   if (!project || !project.scene_plan) {
@@ -34,7 +34,7 @@ export async function action({ request }: ActionFunctionArgs) {
     }));
   }
 
-  renderVideo(renderId, projectId, resolvedPlan).catch((err) => {
+  renderVideo(renderId, projectId, resolvedPlan, voiceId).catch((err) => {
     console.error("Render failed:", err);
   });
 

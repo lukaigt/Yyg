@@ -4,6 +4,7 @@ import { execSync } from "child_process";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { renders, projects } from "./db.server";
+import { generateVoiceover } from "./tts.server";
 
 function findChromiumPath(): string | undefined {
   try {
@@ -77,14 +78,38 @@ function resolveAssetPaths(scenePlan: any): any {
 export async function renderVideo(
   renderId: string,
   projectId: string,
-  scenePlan: any
+  scenePlan: any,
+  voiceId?: string
 ): Promise<string> {
   const outputPath = path.join(RENDERS_DIR, `${renderId}.mp4`);
 
   try {
     const resolvedPlan = resolveAssetPaths(scenePlan);
 
-    renders.updateProgress(renderId, 5);
+    renders.updateProgress(renderId, 3);
+    console.log("Generating voiceover...");
+
+    const port = process.env.PORT || "5000";
+    const baseUrl = `http://127.0.0.1:${port}`;
+
+    try {
+      const audioPaths = await generateVoiceover(renderId, resolvedPlan.scenes, voiceId);
+      resolvedPlan.scenes = resolvedPlan.scenes.map((scene: any, i: number) => {
+        if (audioPaths[i]) {
+          const storageIndex = audioPaths[i].indexOf("storage/");
+          if (storageIndex !== -1) {
+            const relativePath = audioPaths[i].substring(storageIndex + "storage/".length);
+            return { ...scene, voiceoverUrl: `${baseUrl}/storage/${relativePath}` };
+          }
+        }
+        return scene;
+      });
+      console.log("Voiceover generation complete");
+    } catch (err: any) {
+      console.error("Voiceover generation failed, continuing without:", err.message);
+    }
+
+    renders.updateProgress(renderId, 15);
     console.log("Starting bundle...");
     const bundlePath = await getBundlePath();
 

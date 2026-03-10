@@ -9,14 +9,15 @@
     "start": "remix-serve ./build/server/index.js"
   },
   "dependencies": {
-    "@remotion/bundler": "4.0.242",
-    "@remotion/cli": "4.0.242",
-    "@remotion/renderer": "4.0.242",
     "@remix-run/node": "^2.15.0",
     "@remix-run/react": "^2.15.0",
     "@remix-run/serve": "^2.15.0",
+    "@remotion/bundler": "4.0.242",
+    "@remotion/cli": "4.0.242",
+    "@remotion/renderer": "4.0.242",
     "better-sqlite3": "^11.7.0",
     "isbot": "^5.1.0",
+    "msedge-tts": "^2.0.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "remotion": "4.0.242",

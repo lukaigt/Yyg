@@ -1,5 +1,5 @@
 import React from "react";
-import { AbsoluteFill, Sequence } from "remotion";
+import { AbsoluteFill, Sequence, Audio } from "remotion";
 import { SceneComponent } from "./Scene";
 
 interface VideoCompositionProps {
@@ -10,6 +10,7 @@ interface VideoCompositionProps {
       duration: number;
       narrationText: string;
       backgroundColor: string;
+      voiceoverUrl?: string;
       textOverlays: Array<{
         text: string;
         position: string;
@@ -51,6 +52,9 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ scenePlan })
             durationInFrames={durationInFrames}
           >
             <SceneComponent scene={scene} durationInFrames={durationInFrames} />
+            {scene.voiceoverUrl && (
+              <Audio src={scene.voiceoverUrl} volume={1} />
+            )}
           </Sequence>
         );
       })}
