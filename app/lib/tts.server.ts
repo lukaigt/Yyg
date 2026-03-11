@@ -2,10 +2,16 @@ import path from "path";
 import fs from "fs";
 import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts";
 
-const VOICEOVER_DIR = path.join(process.cwd(), "storage", "voiceover");
-
-if (!fs.existsSync(VOICEOVER_DIR)) {
-  fs.mkdirSync(VOICEOVER_DIR, { recursive: true });
+function ensureVoiceoverDir(): string {
+  const dir = path.join(process.cwd(), "storage", "voiceover");
+  try {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  } catch (err) {
+    console.error("Failed to create voiceover directory:", err);
+  }
+  return dir;
 }
 
 export const AVAILABLE_VOICES = [
@@ -71,7 +77,7 @@ export async function generateVoiceover(
   rate: number = 1.05,
   pitch: string = "+0Hz"
 ): Promise<string[]> {
-  const renderVoiceDir = path.join(VOICEOVER_DIR, renderId);
+  const renderVoiceDir = path.join(ensureVoiceoverDir(), renderId);
   if (!fs.existsSync(renderVoiceDir)) {
     fs.mkdirSync(renderVoiceDir, { recursive: true });
   }
