@@ -22,17 +22,29 @@ function findChromiumPath(): string | undefined {
   return undefined;
 }
 
-const CHROMIUM_PATH = findChromiumPath();
-if (CHROMIUM_PATH) {
-  console.log(`Using system Chromium: ${CHROMIUM_PATH}`);
-} else {
-  console.log("No system Chromium found, Remotion will download its own");
+let _chromiumPath: string | undefined | null = null;
+function getChromiumPath(): string | undefined {
+  if (_chromiumPath === null) {
+    _chromiumPath = findChromiumPath();
+    if (_chromiumPath) {
+      console.log(`Using system Chromium: ${_chromiumPath}`);
+    } else {
+      console.log("No system Chromium found, Remotion will download its own");
+    }
+  }
+  return _chromiumPath || undefined;
 }
 
-const RENDERS_DIR = path.join(process.cwd(), "storage", "renders");
-
-if (!fs.existsSync(RENDERS_DIR)) {
-  fs.mkdirSync(RENDERS_DIR, { recursive: true });
+function ensureRendersDir(): string {
+  const dir = path.join(process.cwd(), "storage", "renders");
+  try {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  } catch (err) {
+    console.error("Failed to create renders directory:", err);
+  }
+  return dir;
 }
 
 let bundled: string | null = null;
@@ -96,7 +108,7 @@ export async function renderVideo(
     ? { voiceId: voiceIdOrOptions }
     : voiceIdOrOptions || {};
   const voiceId = options.voiceId;
-  const outputPath = path.join(RENDERS_DIR, `${renderId}.mp4`);
+  const outputPath = path.join(ensureRendersDir(), `${renderId}.mp4`);
 
   try {
     const resolvedPlan = resolveAssetPaths(scenePlan);
@@ -155,7 +167,7 @@ export async function renderVideo(
     );
     const totalFrames = Math.round(totalDuration * FPS);
 
-    const browserExecutable = CHROMIUM_PATH || undefined;
+    const browserExecutable = getChromiumPath();
 
     const inputProps = {
       scenePlan: resolvedPlan,
