@@ -269,7 +269,7 @@ export default function ProjectDetail() {
         </div>
       </div>
 
-      {isRendering && activeRender && (
+      {isRendering && (
         <div className="render-info">
           <span className="spinner" />
           <div style={{ flex: 1 }}>
@@ -277,10 +277,10 @@ export default function ProjectDetail() {
             <div className="progress-bar mt-2">
               <div
                 className="progress-bar-fill"
-                style={{ width: `${activeRender.progress || 0}%` }}
+                style={{ width: `${activeRender?.progress || 0}%` }}
               />
             </div>
-            <p className="text-sm text-muted mt-2">{activeRender.progress || 0}% complete</p>
+            <p className="text-sm text-muted mt-2">{activeRender?.progress || 0}% complete — you can close this tab, it keeps going on the server</p>
           </div>
         </div>
       )}

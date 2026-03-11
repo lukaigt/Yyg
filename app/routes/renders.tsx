@@ -1,5 +1,6 @@
 import { useLoaderData, Link } from "@remix-run/react";
 import { json } from "@remix-run/node";
+import { useEffect } from "react";
 import { renders as rendersDb, projects as projectsDb } from "~/lib/db.server";
 
 export async function loader() {
@@ -14,19 +15,34 @@ export async function loader() {
 export default function Renders() {
   const { renders } = useLoaderData<typeof loader>();
 
+  const hasActiveRenders = renders.some(
+    (r: any) => r.status === "rendering" || r.status === "queued"
+  );
+
+  useEffect(() => {
+    if (!hasActiveRenders) return;
+    const interval = setInterval(() => {
+      window.location.reload();
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [hasActiveRenders]);
+
   return (
     <div>
-      <div className="page-header">
-        <h2>Renders</h2>
-        <p>{renders.length} renders</p>
+      <div className="page-header flex justify-between items-center">
+        <div>
+          <h2>Renders</h2>
+          <p>{renders.length} render{renders.length !== 1 ? "s" : ""}</p>
+        </div>
+        <Link to="/" className="btn btn-primary">New Project</Link>
       </div>
 
       {renders.length === 0 ? (
         <div className="empty-state">
           <h3>No renders yet</h3>
-          <p>Create a project and render your first video</p>
-          <Link to="/" className="btn btn-primary" style={{ marginTop: 12 }}>
-            Create Project
+          <p>Open a project and hit Render Video to generate your first MP4</p>
+          <Link to="/projects" className="btn btn-primary" style={{ marginTop: 12 }}>
+            View Projects
           </Link>
         </div>
       ) : (
@@ -35,18 +51,25 @@ export default function Renders() {
             <div key={render.id} className="card">
               <div className="flex justify-between items-center">
                 <div>
-                  <h3 style={{ fontSize: 16, marginBottom: 4 }}>{render.projectName}</h3>
+                  <Link
+                    to={`/project/${render.project_id}`}
+                    style={{ textDecoration: "none", color: "var(--text-primary)" }}
+                  >
+                    <h3 style={{ fontSize: 16, marginBottom: 4 }}>{render.projectName}</h3>
+                  </Link>
                   <p className="text-sm text-muted">
                     {render.duration_seconds
-                      ? `${Math.round(render.duration_seconds)}s`
-                      : "Processing..."}{" "}
+                      ? `${Math.round(render.duration_seconds)}s video`
+                      : render.status === "rendering" || render.status === "queued"
+                      ? "Rendering..."
+                      : "—"}{" "}
                     &middot; {render.resolution}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`status-badge status-${render.status}`}>
                     {render.status === "rendering"
-                      ? `Rendering ${render.progress}%`
+                      ? `${render.progress}%`
                       : render.status}
                   </span>
                   {render.status === "completed" && render.file_path && (
@@ -54,19 +77,31 @@ export default function Renders() {
                       href={`/api/download/${render.id}`}
                       className="btn btn-primary btn-sm"
                     >
-                      Download
+                      Download MP4
                     </a>
                   )}
-                  {render.status === "rendering" && (
-                    <div className="progress-bar" style={{ width: 120 }}>
-                      <div
-                        className="progress-bar-fill"
-                        style={{ width: `${render.progress}%` }}
-                      />
-                    </div>
-                  )}
+                  <Link
+                    to={`/project/${render.project_id}`}
+                    className="btn btn-sm"
+                    style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)" }}
+                  >
+                    Open Project
+                  </Link>
                 </div>
               </div>
+              {(render.status === "rendering" || render.status === "queued") && (
+                <div style={{ marginTop: 12 }}>
+                  <div className="progress-bar">
+                    <div
+                      className="progress-bar-fill"
+                      style={{ width: `${render.progress || 0}%` }}
+                    />
+                  </div>
+                  <p className="text-sm text-muted" style={{ marginTop: 6 }}>
+                    {render.progress || 0}% — running on server, no need to stay on this page
+                  </p>
+                </div>
+              )}
               {render.error_message && (
                 <p style={{ color: "var(--danger)", fontSize: 13, marginTop: 8 }}>
                   {render.error_message}
