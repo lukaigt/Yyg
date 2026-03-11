@@ -5,6 +5,7 @@ import { AnimatedAsset } from "./components/AnimatedAsset";
 import { AnimatedText } from "./components/AnimatedText";
 import { AnimatedOverlay } from "./components/AnimatedOverlay";
 import { SceneTransition } from "./components/SceneTransition";
+import { SubtitleOverlay } from "./components/SubtitleOverlay";
 
 interface SceneProps {
   scene: {
@@ -32,10 +33,12 @@ interface SceneProps {
     }>;
     transition: string;
   };
+  showCaptions?: boolean;
+  captionSize?: "small" | "medium" | "large";
   durationInFrames: number;
 }
 
-export const SceneComponent: React.FC<SceneProps> = ({ scene, durationInFrames }) => {
+export const SceneComponent: React.FC<SceneProps> = ({ scene, durationInFrames, showCaptions = true, captionSize = "medium" }) => {
   return (
     <SceneTransition type={scene.transition} durationFrames={durationInFrames}>
       <AbsoluteFill>
@@ -70,14 +73,10 @@ export const SceneComponent: React.FC<SceneProps> = ({ scene, durationInFrames }
           />
         ))}
 
-        {scene.sceneNumber > 0 && (
-          <AnimatedOverlay
-            type="stepIndicator"
-            text=""
-            number={scene.sceneNumber}
-            delay={0.2}
-          />
+        {showCaptions && scene.narrationText && (
+          <SubtitleOverlay text={scene.narrationText} size={captionSize} sceneDurationInFrames={durationInFrames} />
         )}
+
       </AbsoluteFill>
     </SceneTransition>
   );

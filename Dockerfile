@@ -28,11 +28,11 @@ RUN npm ci --production=false
 COPY . .
 RUN npm run build
 
-RUN mkdir -p storage/assets storage/renders db
+RUN mkdir -p storage/assets storage/renders storage/music storage/voiceover db
 
-EXPOSE 3000
+EXPOSE 5050
 
-ENV PORT=3000
+ENV PORT=5050
 ENV NODE_ENV=production
 
 CMD ["npm", "start"]

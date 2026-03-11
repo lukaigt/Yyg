@@ -1,6 +1,7 @@
 import React from "react";
 import { AbsoluteFill, Sequence, Audio } from "remotion";
 import { SceneComponent } from "./Scene";
+import { ProgressBar } from "./components/ProgressBar";
 
 interface VideoCompositionProps {
   scenePlan: {
@@ -32,9 +33,21 @@ interface VideoCompositionProps {
       transition: string;
     }>;
   };
+  musicUrl?: string | null;
+  musicVolume?: number;
+  showCaptions?: boolean;
+  captionSize?: "small" | "medium" | "large";
+  showProgressBar?: boolean;
 }
 
-export const VideoComposition: React.FC<VideoCompositionProps> = ({ scenePlan }) => {
+export const VideoComposition: React.FC<VideoCompositionProps> = ({
+  scenePlan,
+  musicUrl,
+  musicVolume = 0.15,
+  showCaptions = true,
+  captionSize = "medium",
+  showProgressBar = true,
+}) => {
   const FPS = 30;
   let currentFrame = 0;
 
@@ -51,13 +64,17 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({ scenePlan })
             from={startFrame}
             durationInFrames={durationInFrames}
           >
-            <SceneComponent scene={scene} durationInFrames={durationInFrames} />
+            <SceneComponent scene={scene} durationInFrames={durationInFrames} showCaptions={showCaptions} captionSize={captionSize} />
             {scene.voiceoverUrl && (
               <Audio src={scene.voiceoverUrl} volume={1} />
             )}
           </Sequence>
         );
       })}
+      {musicUrl && (
+        <Audio src={musicUrl} volume={musicVolume} />
+      )}
+      {showProgressBar && <ProgressBar />}
     </AbsoluteFill>
   );
 };

@@ -4,7 +4,7 @@ import { execSync } from "child_process";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { renders, projects } from "./db.server";
-import { generateVoiceover } from "./tts.server";
+import { generateVoiceover, AVAILABLE_VOICES } from "./tts.server";
 
 function findChromiumPath(): string | undefined {
   try {
@@ -75,12 +75,27 @@ function resolveAssetPaths(scenePlan: any): any {
   return resolved;
 }
 
+export interface RenderOptions {
+  voiceId?: string;
+  voiceRate?: number;
+  voicePitch?: string;
+  musicPath?: string | null;
+  musicVolume?: number;
+  showCaptions?: boolean;
+  captionSize?: string;
+  showProgressBar?: boolean;
+}
+
 export async function renderVideo(
   renderId: string,
   projectId: string,
   scenePlan: any,
-  voiceId?: string
+  voiceIdOrOptions?: string | RenderOptions
 ): Promise<string> {
+  const options: RenderOptions = typeof voiceIdOrOptions === "string"
+    ? { voiceId: voiceIdOrOptions }
+    : voiceIdOrOptions || {};
+  const voiceId = options.voiceId;
   const outputPath = path.join(RENDERS_DIR, `${renderId}.mp4`);
 
   try {
@@ -93,7 +108,15 @@ export async function renderVideo(
     const baseUrl = `http://127.0.0.1:${port}`;
 
     try {
-      const audioPaths = await generateVoiceover(renderId, resolvedPlan.scenes, voiceId);
+      const voiceInfo = AVAILABLE_VOICES.find(v => v.id === voiceId);
+      const pitchValue = options.voicePitch === "low" ? "-2st" : options.voicePitch === "high" ? "+2st" : "+0Hz";
+      const audioPaths = await generateVoiceover(
+        renderId,
+        resolvedPlan.scenes,
+        voiceId,
+        options.voiceRate ?? 1.05,
+        pitchValue
+      );
       resolvedPlan.scenes = resolvedPlan.scenes.map((scene: any, i: number) => {
         if (audioPaths[i]) {
           const storageIndex = audioPaths[i].indexOf("storage/");
@@ -107,6 +130,15 @@ export async function renderVideo(
       console.log("Voiceover generation complete");
     } catch (err: any) {
       console.error("Voiceover generation failed, continuing without:", err.message);
+    }
+
+    let musicUrl: string | undefined;
+    if (options.musicPath && fs.existsSync(options.musicPath)) {
+      const storageIndex = options.musicPath.indexOf("storage/");
+      if (storageIndex !== -1) {
+        const relativePath = options.musicPath.substring(storageIndex + "storage/".length);
+        musicUrl = `${baseUrl}/storage/${relativePath}`;
+      }
     }
 
     renders.updateProgress(renderId, 15);
@@ -125,10 +157,19 @@ export async function renderVideo(
 
     const browserExecutable = CHROMIUM_PATH || undefined;
 
+    const inputProps = {
+      scenePlan: resolvedPlan,
+      musicUrl: musicUrl || null,
+      musicVolume: options.musicVolume ?? 0.15,
+      showCaptions: options.showCaptions ?? true,
+      captionSize: options.captionSize ?? "medium",
+      showProgressBar: options.showProgressBar ?? true,
+    };
+
     const composition = await selectComposition({
       serveUrl: bundlePath,
       id: "VideoComposition",
-      inputProps: { scenePlan: resolvedPlan },
+      inputProps,
       browserExecutable,
     });
 
@@ -145,7 +186,7 @@ export async function renderVideo(
       serveUrl: bundlePath,
       codec: "h264",
       outputLocation: outputPath,
-      inputProps: { scenePlan: resolvedPlan },
+      inputProps,
       browserExecutable,
       onProgress: ({ progress }) => {
         const pct = Math.round(20 + progress * 75);

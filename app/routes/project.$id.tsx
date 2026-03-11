@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { useLoaderData, useFetcher, Link } from "@remix-run/react";
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
-import { json } from "@remix-run/node";
+import { json, unstable_parseMultipartFormData, unstable_createMemoryUploadHandler } from "@remix-run/node";
 import { projects as projectsDb, renders as rendersDb, assets as assetsDb } from "~/lib/db.server";
 import { v4 as uuidv4 } from "uuid";
+import path from "path";
+import fs from "fs";
 import { renderVideo } from "~/lib/renderer.server";
-import { AVAILABLE_VOICES, DEFAULT_VOICE } from "~/lib/tts.server";
+import { AVAILABLE_VOICES, DEFAULT_VOICE, PITCH_OPTIONS } from "~/lib/tts.server";
 
 export async function loader({ params }: LoaderFunctionArgs) {
   const project = projectsDb.getById(params.id!);
@@ -14,12 +16,69 @@ export async function loader({ params }: LoaderFunctionArgs) {
   }
   const projectRenders = rendersDb.getByProjectId(params.id!);
   const allAssets = assetsDb.getAll();
-  return json({ project, renders: projectRenders, assets: allAssets, voices: AVAILABLE_VOICES, defaultVoice: DEFAULT_VOICE });
+  return json({ project, renders: projectRenders, assets: allAssets, voices: AVAILABLE_VOICES, defaultVoice: DEFAULT_VOICE, pitchOptions: PITCH_OPTIONS });
+}
+
+const MUSIC_DIR = path.join(process.cwd(), "storage", "music");
+if (!fs.existsSync(MUSIC_DIR)) {
+  fs.mkdirSync(MUSIC_DIR, { recursive: true });
 }
 
 export async function action({ request, params }: ActionFunctionArgs) {
+  const contentType = request.headers.get("content-type") || "";
+
+  if (contentType.includes("multipart/form-data")) {
+    const uploadHandler = unstable_createMemoryUploadHandler({
+      maxPartSize: 50_000_000,
+    });
+    const formData = await unstable_parseMultipartFormData(request, uploadHandler);
+    const intent = formData.get("intent");
+
+    if (intent === "uploadMusic") {
+      const musicFile = formData.get("musicFile");
+      if (!musicFile || !(musicFile instanceof File) || musicFile.size === 0) {
+        return json({ error: "No music file uploaded" }, { status: 400 });
+      }
+      const ext = path.extname(musicFile.name || ".mp3").toLowerCase();
+      if (ext !== ".mp3") {
+        return json({ error: "Only MP3 files are supported" }, { status: 400 });
+      }
+      if (musicFile.size > 50_000_000) {
+        return json({ error: "File too large (max 50MB)" }, { status: 400 });
+      }
+      try {
+        const filename = `${uuidv4()}${ext}`;
+        const musicPath = path.join(MUSIC_DIR, filename);
+        const buffer = Buffer.from(await musicFile.arrayBuffer());
+        fs.writeFileSync(musicPath, buffer);
+        projectsDb.updateSettings(params.id!, { music_path: musicPath });
+        return json({ success: true, musicUploaded: true });
+      } catch (err: any) {
+        console.error("Music upload failed:", err);
+        return json({ error: "Failed to save music file" }, { status: 500 });
+      }
+    }
+
+    return json({ error: "Unknown multipart action" }, { status: 400 });
+  }
+
   const formData = await request.formData();
   const intent = formData.get("intent");
+
+  if (intent === "removeMusic") {
+    const project = projectsDb.getById(params.id!);
+    if (project?.music_path) {
+      try {
+        if (fs.existsSync(project.music_path)) {
+          fs.unlinkSync(project.music_path);
+        }
+      } catch (err: any) {
+        console.error("Failed to delete music file:", err.message);
+      }
+    }
+    projectsDb.updateSettings(params.id!, { music_path: null });
+    return json({ success: true, musicRemoved: true });
+  }
 
   if (intent === "render") {
     const project = projectsDb.getById(params.id!);
@@ -52,7 +111,32 @@ export async function action({ request, params }: ActionFunctionArgs) {
     rendersDb.create({ id: renderId, project_id: project.id });
     projectsDb.updateStatus(project.id, "rendering");
 
-    renderVideo(renderId, project.id, resolvedPlan, voiceId).catch((err) => {
+    const voiceRate = parseFloat((formData.get("voiceRate") as string) || "1.05");
+    const voicePitch = (formData.get("voicePitch") as string) || "normal";
+    const musicVolume = parseFloat((formData.get("musicVolume") as string) || "0.15");
+    const showCaptions = formData.get("showCaptions") !== "false";
+    const captionSize = (formData.get("captionSize") as string) || "medium";
+    const showProgressBar = formData.get("showProgressBar") !== "false";
+
+    projectsDb.updateSettings(params.id!, {
+      voice_rate: Math.max(0.8, Math.min(1.2, voiceRate)),
+      voice_pitch: voicePitch,
+      music_volume: Math.max(0, Math.min(1, musicVolume)),
+      show_captions: showCaptions,
+      caption_size: captionSize,
+      show_progress_bar: showProgressBar,
+    });
+
+    renderVideo(renderId, project.id, resolvedPlan, {
+      voiceId,
+      voiceRate: Math.max(0.8, Math.min(1.2, voiceRate)),
+      voicePitch,
+      musicPath: project.music_path,
+      musicVolume: Math.max(0, Math.min(1, musicVolume)),
+      showCaptions,
+      captionSize,
+      showProgressBar,
+    }).catch((err) => {
       console.error("Background render failed:", err);
     });
 
@@ -74,11 +158,17 @@ export async function action({ request, params }: ActionFunctionArgs) {
 }
 
 export default function ProjectDetail() {
-  const { project, renders, assets, voices, defaultVoice } = useLoaderData<typeof loader>();
+  const { project, renders, assets, voices, defaultVoice, pitchOptions } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const [activeRender, setActiveRender] = useState<any>(null);
   const [trackingRenderId, setTrackingRenderId] = useState<string | null>(null);
   const [selectedVoice, setSelectedVoice] = useState(defaultVoice);
+  const [voiceSpeed, setVoiceSpeed] = useState(project.voice_rate ?? 1.05);
+  const [voicePitch, setVoicePitch] = useState<string>(project.voice_pitch ?? "normal");
+  const [musicVolume, setMusicVolume] = useState(project.music_volume ?? 0.15);
+  const [showCaptions, setShowCaptions] = useState(project.show_captions ?? true);
+  const [captionSize, setCaptionSize] = useState<"small" | "medium" | "large">((project.caption_size as any) ?? "medium");
+  const [showProgressBar, setShowProgressBar] = useState(project.show_progress_bar ?? true);
 
   const latestRender = renders[0];
   const isSubmitting = fetcher.state === "submitting";
@@ -111,7 +201,16 @@ export default function ProjectDetail() {
   }, [trackingRenderId, latestRender]);
 
   const handleRender = () => {
-    fetcher.submit({ intent: "render", voiceId: selectedVoice }, { method: "post" });
+    fetcher.submit({
+      intent: "render",
+      voiceId: selectedVoice,
+      voiceRate: String(voiceSpeed),
+      voicePitch,
+      musicVolume: String(musicVolume),
+      showCaptions: showCaptions ? "true" : "false",
+      captionSize,
+      showProgressBar: showProgressBar ? "true" : "false",
+    }, { method: "post" });
   };
 
   return (
@@ -231,6 +330,315 @@ export default function ProjectDetail() {
                 </div>
               </label>
             ))}
+          </div>
+
+          <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>Voice Speed</span>
+                <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{voiceSpeed.toFixed(2)}x</span>
+              </div>
+              <input
+                type="range"
+                min="0.8"
+                max="1.2"
+                step="0.05"
+                value={voiceSpeed}
+                onChange={(e) => setVoiceSpeed(parseFloat(e.target.value))}
+                style={{ width: "100%", accentColor: "var(--primary)" }}
+              />
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}>
+                <span>Slower</span>
+                <span>Faster</span>
+              </div>
+            </div>
+
+            <div>
+              <div style={{ marginBottom: 6 }}>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>Voice Pitch</span>
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {pitchOptions.map((p: any) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setVoicePitch(p.id)}
+                    style={{
+                      flex: 1,
+                      padding: "6px 0",
+                      border: voicePitch === p.id ? "2px solid var(--primary)" : "1px solid var(--border)",
+                      borderRadius: "var(--radius)",
+                      background: voicePitch === p.id ? "rgba(124, 77, 255, 0.08)" : "var(--bg-secondary)",
+                      color: voicePitch === p.id ? "var(--primary)" : "var(--text)",
+                      cursor: "pointer",
+                      fontSize: 13,
+                      fontWeight: voicePitch === p.id ? 600 : 400,
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {project.scene_plan && (
+        <div className="card mb-4">
+          <h3 style={{ fontSize: 16, marginBottom: 12 }}>Background Music</h3>
+          {project.music_path ? (
+            <div>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "10px 14px",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius)",
+                background: "var(--bg-secondary)",
+                marginBottom: 12,
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: "50%",
+                    background: "rgba(124, 77, 255, 0.15)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>Music uploaded</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Ready to use in render</div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => fetcher.submit({ intent: "removeMusic" }, { method: "post" })}
+                  style={{
+                    padding: "4px 12px",
+                    border: "1px solid var(--danger)",
+                    borderRadius: "var(--radius)",
+                    background: "transparent",
+                    color: "var(--danger)",
+                    cursor: "pointer",
+                    fontSize: 12,
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span style={{ fontWeight: 600, fontSize: 13 }}>Music Volume</span>
+                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{Math.round(musicVolume * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={musicVolume}
+                  onChange={(e) => setMusicVolume(parseFloat(e.target.value))}
+                  style={{ width: "100%", accentColor: "var(--primary)" }}
+                />
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}>
+                  <span>Silent</span>
+                  <span>Full</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <form
+              method="post"
+              encType="multipart/form-data"
+              style={{
+                border: "2px dashed var(--border)",
+                borderRadius: "var(--radius)",
+                padding: 24,
+                textAlign: "center",
+                cursor: "pointer",
+                position: "relative",
+              }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.currentTarget;
+                const formData = new FormData(form);
+                fetcher.submit(formData, { method: "post", encType: "multipart/form-data" });
+              }}
+            >
+              <input
+                type="hidden"
+                name="intent"
+                value="uploadMusic"
+              />
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" style={{ marginBottom: 8 }}>
+                <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+              </svg>
+              <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 8px" }}>
+                Upload an MP3 for background music
+              </p>
+              <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "0 0 12px" }}>
+                Free music: YouTube Audio Library, Pixabay Music, Uppbeat
+              </p>
+              <label style={{
+                display: "inline-block",
+                padding: "8px 20px",
+                background: "var(--primary)",
+                color: "#fff",
+                borderRadius: "var(--radius)",
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 500,
+              }}>
+                Choose MP3 File
+                <input
+                  type="file"
+                  name="musicFile"
+                  accept=".mp3,audio/mpeg"
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    if (e.target.files?.length) {
+                      const form = e.target.closest("form");
+                      if (form) {
+                        const formData = new FormData(form);
+                        fetcher.submit(formData, { method: "post", encType: "multipart/form-data" });
+                      }
+                    }
+                  }}
+                />
+              </label>
+            </form>
+          )}
+        </div>
+      )}
+
+      {project.scene_plan && (
+        <div className="card mb-4">
+          <h3 style={{ fontSize: 16, marginBottom: 12 }}>Visual Options</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "10px 14px",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius)",
+                cursor: "pointer",
+                background: "var(--bg-secondary)",
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>Show Captions</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Display narration text as animated subtitles at the bottom</div>
+              </div>
+              <div
+                onClick={(e) => { e.preventDefault(); setShowCaptions(!showCaptions); }}
+                style={{
+                  width: 40,
+                  height: 22,
+                  borderRadius: 11,
+                  background: showCaptions ? "var(--primary)" : "var(--border)",
+                  position: "relative",
+                  cursor: "pointer",
+                  transition: "background 0.2s",
+                  flexShrink: 0,
+                  marginLeft: 12,
+                }}
+              >
+                <div style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: "50%",
+                  background: "#fff",
+                  position: "absolute",
+                  top: 2,
+                  left: showCaptions ? 20 : 2,
+                  transition: "left 0.2s",
+                }} />
+              </div>
+            </label>
+
+            {showCaptions && (
+              <div
+                style={{
+                  padding: "10px 14px",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius)",
+                  background: "var(--bg-secondary)",
+                }}
+              >
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Caption Size</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {(["small", "medium", "large"] as const).map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => setCaptionSize(size)}
+                      style={{
+                        padding: "6px 16px",
+                        border: captionSize === size ? "2px solid var(--primary)" : "1px solid var(--border)",
+                        borderRadius: "var(--radius)",
+                        background: captionSize === size ? "rgba(124, 77, 255, 0.08)" : "transparent",
+                        color: captionSize === size ? "var(--primary)" : "var(--text-secondary)",
+                        fontWeight: captionSize === size ? 600 : 400,
+                        fontSize: 13,
+                        cursor: "pointer",
+                        textTransform: "capitalize",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "10px 14px",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius)",
+                cursor: "pointer",
+                background: "var(--bg-secondary)",
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>Show Progress Bar</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Subtle bar at the bottom that fills as the video plays</div>
+              </div>
+              <div
+                onClick={(e) => { e.preventDefault(); setShowProgressBar(!showProgressBar); }}
+                style={{
+                  width: 40,
+                  height: 22,
+                  borderRadius: 11,
+                  background: showProgressBar ? "var(--primary)" : "var(--border)",
+                  position: "relative",
+                  cursor: "pointer",
+                  transition: "background 0.2s",
+                  flexShrink: 0,
+                  marginLeft: 12,
+                }}
+              >
+                <div style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: "50%",
+                  background: "#fff",
+                  position: "absolute",
+                  top: 2,
+                  left: showProgressBar ? 20 : 2,
+                  transition: "left 0.2s",
+                }} />
+              </div>
+            </label>
           </div>
         </div>
       )}

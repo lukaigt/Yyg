@@ -52,6 +52,28 @@ db.exec(`
   );
 `);
 
+try {
+  db.exec(`ALTER TABLE projects ADD COLUMN music_path TEXT`);
+} catch {}
+try {
+  db.exec(`ALTER TABLE projects ADD COLUMN music_volume REAL DEFAULT 0.15`);
+} catch {}
+try {
+  db.exec(`ALTER TABLE projects ADD COLUMN voice_rate REAL DEFAULT 1.05`);
+} catch {}
+try {
+  db.exec(`ALTER TABLE projects ADD COLUMN voice_pitch TEXT DEFAULT 'normal'`);
+} catch {}
+try {
+  db.exec(`ALTER TABLE projects ADD COLUMN show_captions INTEGER DEFAULT 1`);
+} catch {}
+try {
+  db.exec(`ALTER TABLE projects ADD COLUMN caption_size TEXT DEFAULT 'medium'`);
+} catch {}
+try {
+  db.exec(`ALTER TABLE projects ADD COLUMN show_progress_bar INTEGER DEFAULT 1`);
+} catch {}
+
 export interface Asset {
   id: string;
   filename: string;
@@ -72,6 +94,13 @@ export interface Project {
   prompt: string;
   scene_plan: any | null;
   status: string;
+  music_path: string | null;
+  music_volume: number;
+  voice_rate: number;
+  voice_pitch: string;
+  show_captions: boolean;
+  caption_size: string;
+  show_progress_bar: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -100,6 +129,12 @@ function rowToProject(row: any): Project {
   return {
     ...row,
     scene_plan: row.scene_plan ? JSON.parse(row.scene_plan) : null,
+    music_volume: row.music_volume ?? 0.15,
+    voice_rate: row.voice_rate ?? 1.05,
+    voice_pitch: row.voice_pitch ?? "normal",
+    show_captions: row.show_captions == null ? true : Boolean(row.show_captions),
+    caption_size: row.caption_size ?? "medium",
+    show_progress_bar: row.show_progress_bar == null ? true : Boolean(row.show_progress_bar),
   };
 }
 
@@ -204,6 +239,31 @@ export const projects = {
     db.prepare(
       "UPDATE projects SET status = ?, updated_at = datetime('now') WHERE id = ?"
     ).run(status, id);
+  },
+
+  updateSettings(id: string, settings: {
+    music_path?: string | null;
+    music_volume?: number;
+    voice_rate?: number;
+    voice_pitch?: string;
+    show_captions?: boolean;
+    caption_size?: string;
+    show_progress_bar?: boolean;
+  }): void {
+    const fields: string[] = [];
+    const values: any[] = [];
+    if (settings.music_path !== undefined) { fields.push("music_path = ?"); values.push(settings.music_path); }
+    if (settings.music_volume !== undefined) { fields.push("music_volume = ?"); values.push(settings.music_volume); }
+    if (settings.voice_rate !== undefined) { fields.push("voice_rate = ?"); values.push(settings.voice_rate); }
+    if (settings.voice_pitch !== undefined) { fields.push("voice_pitch = ?"); values.push(settings.voice_pitch); }
+    if (settings.show_captions !== undefined) { fields.push("show_captions = ?"); values.push(settings.show_captions ? 1 : 0); }
+    if (settings.caption_size !== undefined) { fields.push("caption_size = ?"); values.push(settings.caption_size); }
+    if (settings.show_progress_bar !== undefined) { fields.push("show_progress_bar = ?"); values.push(settings.show_progress_bar ? 1 : 0); }
+    if (fields.length > 0) {
+      fields.push("updated_at = datetime('now')");
+      values.push(id);
+      db.prepare(`UPDATE projects SET ${fields.join(", ")} WHERE id = ?`).run(...values);
+    }
   },
 
   delete(id: string): boolean {

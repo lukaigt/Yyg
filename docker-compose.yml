@@ -2,7 +2,7 @@ services:
   videoforge:
     build: .
     ports:
-      - "${PORT:-3000}:${PORT:-3000}"
+      - "${PORT:-5050}:${PORT:-5050}"
     env_file:
       - .env
     volumes:

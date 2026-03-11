@@ -73,7 +73,6 @@ RULES FOR SCENE PLANNING:
 - ${lengthGuidance}
 - The total duration should be NATURAL for the topic — don't pad or rush. If a topic naturally fits 7 minutes, make it 7 minutes even if the target says 10. Better to be engaging than to fill time.
 - Structure the video with clear sections: hook/intro, main content broken into logical parts, conclusion
-- Write narration text as if it's a real YouTube script — conversational, interesting, not robotic
 - Every scene needs at least one animated visual element with real motion (sliding, bouncing, scaling, rotating)
 - Vary animations — cycle through slides, bounces, fades, scales, spins. Don't use the same one 3 times in a row
 - Text overlays: max 10 words each, use them for key terms, numbers, names
@@ -82,6 +81,18 @@ RULES FOR SCENE PLANNING:
 - 1-3 animated elements per scene, 1-2 text overlays per scene
 - Section title scenes at major transitions (larger text, bold animation)
 - Start with a hook, end with a proper conclusion
+
+NARRATION WRITING STYLE (CRITICAL — this will be read aloud by a text-to-speech engine):
+- Write like a real YouTube narrator talking to the viewer — conversational, energetic, not robotic or essay-like
+- Use short punchy sentences. Break up long explanations into digestible chunks
+- Use rhetorical questions to engage: "But here's the thing — why would anyone do that?"
+- Use dashes for natural pauses: "And then — out of nowhere — everything changed."
+- Vary sentence length. Mix short impactful lines with slightly longer explanations
+- Use transition phrases naturally: "Now here's where it gets interesting.", "But wait.", "So what happened next?"
+- Avoid academic or formal language. Say "a ton of" not "a significant quantity of"
+- Add emphasis words: "absolutely", "actually", "seriously", "literally" (sparingly)
+- End sections with cliffhangers or hooks into the next section
+- The narration should sound like something you'd actually want to listen to, not a textbook reading
 
 ASSET MATCHING:
 - You'll get a list of available asset tags from the user's library

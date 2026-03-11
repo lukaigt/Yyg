@@ -20,7 +20,7 @@ cp .env.example .env
 3. Edit `.env` and add your OpenRouter API key:
 ```
 OPENROUTER_API_KEY=your_key_here
-PORT=3000
+PORT=5050
 ```
 
 4. Start the app:
@@ -28,7 +28,7 @@ PORT=3000
 docker compose up -d
 ```
 
-5. Access at `http://your-vps-ip:3000`
+5. Access at `http://your-vps-ip:5050`
 
 ## Updating
 
@@ -41,7 +41,7 @@ docker compose up -d --build
 ## Data Persistence
 
 Your data is stored in two directories that are mounted as Docker volumes:
-- `storage/` - uploaded assets and rendered videos
+- `storage/` - uploaded assets, background music, voiceover audio, and rendered videos
 - `db/` - SQLite database file
 
 These persist across container rebuilds.
@@ -53,7 +53,7 @@ To use a domain name with HTTPS, set up Nginx or Caddy as a reverse proxy:
 ### Caddy (easiest)
 ```
 yourdomain.com {
-    reverse_proxy localhost:3000
+    reverse_proxy localhost:5050
 }
 ```
 
@@ -66,7 +66,7 @@ server {
     client_max_body_size 100M;
 
     location / {
-        proxy_pass http://localhost:3000;
+        proxy_pass http://localhost:5050;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }
