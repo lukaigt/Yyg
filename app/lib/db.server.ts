@@ -136,7 +136,7 @@ function rowToAsset(row: any): Asset {
 function rowToProject(row: any): Project {
   return {
     ...row,
-    scene_plan: row.scene_plan ? JSON.parse(row.scene_plan) : null,
+    scene_plan: row.scene_plan ? (() => { try { return JSON.parse(row.scene_plan); } catch { return null; } })() : null,
     music_volume: row.music_volume ?? 0.15,
     voice_rate: row.voice_rate ?? 1.05,
     voice_pitch: row.voice_pitch ?? "normal",

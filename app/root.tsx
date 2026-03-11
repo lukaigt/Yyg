@@ -5,6 +5,9 @@ import {
   Scripts,
   ScrollRestoration,
   NavLink,
+  useRouteError,
+  isRouteErrorResponse,
+  Link,
 } from "@remix-run/react";
 import type { LinksFunction } from "@remix-run/node";
 import styles from "~/styles/global.css?url";
@@ -52,6 +55,57 @@ export default function App() {
           </main>
         </div>
         <ScrollRestoration />
+        <Scripts />
+      </body>
+    </html>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  const message = isRouteErrorResponse(error)
+    ? `${error.status}: ${error.data}`
+    : error instanceof Error
+    ? error.message
+    : "Something went wrong";
+
+  return (
+    <html lang="en">
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <Meta />
+        <Links />
+      </head>
+      <body>
+        <div className="app-layout">
+          <aside className="sidebar">
+            <div className="sidebar-brand">
+              <h1>VideoForge</h1>
+            </div>
+            <nav className="sidebar-nav">
+              <Link to="/" className="nav-link">New Project</Link>
+              <Link to="/projects" className="nav-link">Projects</Link>
+              <Link to="/library" className="nav-link">Asset Library</Link>
+              <Link to="/renders" className="nav-link">Renders</Link>
+            </nav>
+          </aside>
+          <main className="main-content">
+            <div className="page-header">
+              <h2>Something went wrong</h2>
+            </div>
+            <div className="card" style={{ borderColor: "var(--danger)" }}>
+              <p style={{ color: "var(--danger)", fontWeight: 600, marginBottom: 8 }}>
+                {isRouteErrorResponse(error) ? `Error ${error.status}` : "Application Error"}
+              </p>
+              <p className="text-sm text-muted" style={{ marginBottom: 16 }}>{message}</p>
+              <div className="flex gap-3">
+                <Link to="/" className="btn btn-primary">Go Home</Link>
+                <button className="btn" onClick={() => window.location.reload()}>Try Again</button>
+              </div>
+            </div>
+          </main>
+        </div>
         <Scripts />
       </body>
     </html>

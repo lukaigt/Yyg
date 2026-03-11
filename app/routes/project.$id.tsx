@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useLoaderData, useFetcher, Link } from "@remix-run/react";
+import { useLoaderData, useFetcher, Link, useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, unstable_parseMultipartFormData, unstable_createMemoryUploadHandler } from "@remix-run/node";
 import { projects as projectsDb, renders as rendersDb, assets as assetsDb } from "~/lib/db.server";
@@ -19,9 +19,17 @@ export async function loader({ params }: LoaderFunctionArgs) {
   return json({ project, renders: projectRenders, assets: allAssets, voices: AVAILABLE_VOICES, defaultVoice: DEFAULT_VOICE, pitchOptions: PITCH_OPTIONS });
 }
 
-const MUSIC_DIR = path.join(process.cwd(), "storage", "music");
-if (!fs.existsSync(MUSIC_DIR)) {
-  fs.mkdirSync(MUSIC_DIR, { recursive: true });
+function ensureMusicDir() {
+  try {
+    const dir = path.join(process.cwd(), "storage", "music");
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    return dir;
+  } catch (err) {
+    console.error("Failed to create music directory:", err);
+    return path.join(process.cwd(), "storage", "music");
+  }
 }
 
 export async function action({ request, params }: ActionFunctionArgs) {
@@ -48,7 +56,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
       }
       try {
         const filename = `${uuidv4()}${ext}`;
-        const musicPath = path.join(MUSIC_DIR, filename);
+        const musicPath = path.join(ensureMusicDir(), filename);
         const buffer = Buffer.from(await musicFile.arrayBuffer());
         fs.writeFileSync(musicPath, buffer);
         projectsDb.updateSettings(params.id!, { music_path: musicPath });
@@ -794,6 +802,36 @@ export default function ProjectDetail() {
           <p>Something went wrong during scene planning</p>
         </div>
       )}
+    </div>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  const message = isRouteErrorResponse(error)
+    ? `${error.status}: ${error.data}`
+    : error instanceof Error
+    ? error.message
+    : "An unexpected error occurred";
+
+  return (
+    <div>
+      <div className="page-header">
+        <Link to="/projects" className="text-sm text-muted" style={{ textDecoration: "none" }}>
+          &larr; Back to Projects
+        </Link>
+        <h2 style={{ marginTop: 8 }}>Something went wrong</h2>
+      </div>
+      <div className="card" style={{ borderColor: "var(--danger)" }}>
+        <p style={{ color: "var(--danger)", fontWeight: 600, marginBottom: 8 }}>
+          Failed to load this project
+        </p>
+        <p className="text-sm text-muted" style={{ marginBottom: 16 }}>{message}</p>
+        <div className="flex gap-3">
+          <Link to="/projects" className="btn btn-primary">Go to Projects</Link>
+          <button className="btn" onClick={() => window.location.reload()}>Try Again</button>
+        </div>
+      </div>
     </div>
   );
 }
