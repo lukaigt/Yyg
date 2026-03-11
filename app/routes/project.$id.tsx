@@ -169,16 +169,40 @@ export default function ProjectDetail() {
   const [showCaptions, setShowCaptions] = useState(project.show_captions ?? true);
   const [captionSize, setCaptionSize] = useState<"small" | "medium" | "large">((project.caption_size as any) ?? "medium");
   const [showProgressBar, setShowProgressBar] = useState(project.show_progress_bar ?? true);
+  const [planningDone, setPlanningDone] = useState(false);
+  const [planningError, setPlanningError] = useState<string | null>(project.planning_error ?? null);
 
   const latestRender = renders[0];
   const isSubmitting = fetcher.state === "submitting";
   const isRendering = latestRender?.status === "rendering" || isSubmitting || !!trackingRenderId;
+  const isPlanning = project.is_planning && !planningDone;
 
   useEffect(() => {
     if (fetcher.data && (fetcher.data as any).renderId) {
       setTrackingRenderId((fetcher.data as any).renderId);
     }
   }, [fetcher.data]);
+
+  useEffect(() => {
+    if (!project.is_planning || planningDone) return;
+    const interval = setInterval(() => {
+      fetch(`/api/plan-status/${project.id}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.planning_error) {
+            setPlanningError(data.planning_error);
+            setPlanningDone(true);
+            clearInterval(interval);
+          } else if (data.scene_plan_ready) {
+            setPlanningDone(true);
+            clearInterval(interval);
+            window.location.reload();
+          }
+        })
+        .catch(() => {});
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [project.id, project.is_planning, planningDone]);
 
   useEffect(() => {
     const renderIdToTrack = trackingRenderId || (latestRender?.status === "rendering" ? latestRender.id : null);
@@ -224,7 +248,9 @@ export default function ProjectDetail() {
           <p>{project.prompt}</p>
         </div>
         <div className="flex items-center gap-3">
-          <span className={`status-badge status-${project.status}`}>{project.status}</span>
+          <span className={`status-badge status-${isPlanning ? "draft" : project.status}`}>
+            {isPlanning ? "planning" : project.status}
+          </span>
           {project.scene_plan && (
             <button
               className="btn btn-primary"
@@ -740,6 +766,27 @@ export default function ProjectDetail() {
               </div>
             </div>
           ))}
+        </div>
+      ) : planningError ? (
+        <div className="empty-state">
+          <h3>Planning failed</h3>
+          <p style={{ color: "var(--danger)", maxWidth: 480 }}>{planningError}</p>
+          <Link to="/" className="btn btn-primary" style={{ marginTop: 16 }}>
+            Try Again
+          </Link>
+        </div>
+      ) : isPlanning ? (
+        <div className="card" style={{ textAlign: "center", padding: "48px 32px" }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 24 }}>
+            <span className="spinner" style={{ width: 32, height: 32, borderWidth: 3 }} />
+          </div>
+          <h3 style={{ fontSize: 18, marginBottom: 8 }}>AI is planning your video...</h3>
+          <p className="text-muted" style={{ fontSize: 14, maxWidth: 400, margin: "0 auto 8px" }}>
+            Researching your topic and writing the full scene-by-scene script. This takes 30–60 seconds.
+          </p>
+          <p className="text-muted" style={{ fontSize: 13 }}>
+            You can close this tab — the page will update automatically when it's ready.
+          </p>
         </div>
       ) : (
         <div className="empty-state">

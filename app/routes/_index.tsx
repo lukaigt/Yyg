@@ -32,22 +32,22 @@ export async function action({ request }: ActionFunctionArgs) {
   const validModelIds = AVAILABLE_MODELS.map(m => m.id);
   const selectedModel = validModelIds.includes(model as any) ? model : DEFAULT_MODEL;
 
-  try {
-    const id = uuidv4();
-    const name = prompt.trim().substring(0, 60);
-    const project = projects.create({ id, name, prompt: prompt.trim() });
+  const id = uuidv4();
+  const name = prompt.trim().substring(0, 60);
+  projects.create({ id, name, prompt: prompt.trim() });
+  projects.setPlanning(id, true);
 
-    const scenePlan = await createScenePlan(prompt.trim(), targetMinutes, selectedModel);
-    projects.updateScenePlan(id, scenePlan);
+  createScenePlan(prompt.trim(), targetMinutes, selectedModel)
+    .then((scenePlan) => {
+      projects.updateScenePlan(id, scenePlan);
+      projects.setPlanning(id, false);
+    })
+    .catch((error: any) => {
+      console.error("Background scene planning error:", error);
+      projects.setPlanningError(id, error.message || "Planning failed");
+    });
 
-    return redirect(`/project/${id}`);
-  } catch (error: any) {
-    console.error("Scene planning error:", error);
-    return json(
-      { error: `Failed to generate scene plan: ${error.message}` },
-      { status: 500 }
-    );
-  }
+  return redirect(`/project/${id}`);
 }
 
 export default function Index() {

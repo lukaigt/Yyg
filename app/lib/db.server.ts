@@ -73,6 +73,12 @@ try {
 try {
   db.exec(`ALTER TABLE projects ADD COLUMN show_progress_bar INTEGER DEFAULT 1`);
 } catch {}
+try {
+  db.exec(`ALTER TABLE projects ADD COLUMN is_planning INTEGER DEFAULT 0`);
+} catch {}
+try {
+  db.exec(`ALTER TABLE projects ADD COLUMN planning_error TEXT`);
+} catch {}
 
 export interface Asset {
   id: string;
@@ -101,6 +107,8 @@ export interface Project {
   show_captions: boolean;
   caption_size: string;
   show_progress_bar: boolean;
+  is_planning: boolean;
+  planning_error: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -135,6 +143,8 @@ function rowToProject(row: any): Project {
     show_captions: row.show_captions == null ? true : Boolean(row.show_captions),
     caption_size: row.caption_size ?? "medium",
     show_progress_bar: row.show_progress_bar == null ? true : Boolean(row.show_progress_bar),
+    is_planning: Boolean(row.is_planning),
+    planning_error: row.planning_error ?? null,
   };
 }
 
@@ -264,6 +274,18 @@ export const projects = {
       values.push(id);
       db.prepare(`UPDATE projects SET ${fields.join(", ")} WHERE id = ?`).run(...values);
     }
+  },
+
+  setPlanning(id: string, isPlanning: boolean): void {
+    db.prepare(
+      "UPDATE projects SET is_planning = ?, planning_error = NULL, updated_at = datetime('now') WHERE id = ?"
+    ).run(isPlanning ? 1 : 0, id);
+  },
+
+  setPlanningError(id: string, error: string): void {
+    db.prepare(
+      "UPDATE projects SET is_planning = 0, planning_error = ?, updated_at = datetime('now') WHERE id = ?"
+    ).run(error, id);
   },
 
   delete(id: string): boolean {
