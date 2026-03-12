@@ -1,11 +1,9 @@
 import { useState } from "react";
-import { Form, useActionData, useNavigation, Link } from "@remix-run/react";
+import { Form, useActionData, useNavigation, Link, useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { v4 as uuidv4 } from "uuid";
 import { projects } from "~/lib/db.server";
-import { createScenePlan } from "~/lib/scenePlanner.server";
-import { AVAILABLE_MODELS, DEFAULT_MODEL } from "~/lib/openrouter.server";
 import { useLoaderData } from "@remix-run/react";
 
 const LENGTH_MAP: Record<string, number> = {
@@ -15,39 +13,48 @@ const LENGTH_MAP: Record<string, number> = {
 };
 
 export async function loader() {
+  const { AVAILABLE_MODELS, DEFAULT_MODEL } = await import("~/lib/openrouter.server");
   return json({ models: AVAILABLE_MODELS, defaultModel: DEFAULT_MODEL });
 }
 
 export async function action({ request }: ActionFunctionArgs) {
-  const formData = await request.formData();
-  const prompt = formData.get("prompt") as string;
-  const lengthPref = (formData.get("length") as string) || "long";
-  const model = (formData.get("model") as string) || DEFAULT_MODEL;
-  const targetMinutes = LENGTH_MAP[lengthPref] || 8;
+  try {
+    const { AVAILABLE_MODELS, DEFAULT_MODEL } = await import("~/lib/openrouter.server");
+    const { createScenePlan } = await import("~/lib/scenePlanner.server");
 
-  if (!prompt || !prompt.trim()) {
-    return json({ error: "Please enter a topic for your video" }, { status: 400 });
+    const formData = await request.formData();
+    const prompt = formData.get("prompt") as string;
+    const lengthPref = (formData.get("length") as string) || "long";
+    const model = (formData.get("model") as string) || DEFAULT_MODEL;
+    const targetMinutes = LENGTH_MAP[lengthPref] || 8;
+
+    if (!prompt || !prompt.trim()) {
+      return json({ error: "Please enter a topic for your video" }, { status: 400 });
+    }
+
+    const validModelIds = AVAILABLE_MODELS.map(m => m.id);
+    const selectedModel = validModelIds.includes(model as any) ? model : DEFAULT_MODEL;
+
+    const id = uuidv4();
+    const name = prompt.trim().substring(0, 60);
+    projects.create({ id, name, prompt: prompt.trim() });
+    projects.setPlanning(id, true);
+
+    createScenePlan(prompt.trim(), targetMinutes, selectedModel)
+      .then((scenePlan) => {
+        projects.updateScenePlan(id, scenePlan);
+        projects.setPlanning(id, false);
+      })
+      .catch((error: any) => {
+        console.error("Background scene planning error:", error);
+        projects.setPlanningError(id, error.message || "Planning failed");
+      });
+
+    return redirect(`/project/${id}`);
+  } catch (err) {
+    console.error("Index action error:", err);
+    return json({ error: err instanceof Error ? err.message : "Failed to create project" }, { status: 500 });
   }
-
-  const validModelIds = AVAILABLE_MODELS.map(m => m.id);
-  const selectedModel = validModelIds.includes(model as any) ? model : DEFAULT_MODEL;
-
-  const id = uuidv4();
-  const name = prompt.trim().substring(0, 60);
-  projects.create({ id, name, prompt: prompt.trim() });
-  projects.setPlanning(id, true);
-
-  createScenePlan(prompt.trim(), targetMinutes, selectedModel)
-    .then((scenePlan) => {
-      projects.updateScenePlan(id, scenePlan);
-      projects.setPlanning(id, false);
-    })
-    .catch((error: any) => {
-      console.error("Background scene planning error:", error);
-      projects.setPlanningError(id, error.message || "Planning failed");
-    });
-
-  return redirect(`/project/${id}`);
 }
 
 export default function Index() {
@@ -272,6 +279,28 @@ export default function Index() {
             <li>Download and upload to YouTube</li>
           </ol>
         </div>
+      </div>
+    </div>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  const message = isRouteErrorResponse(error)
+    ? `${error.status}: ${error.data}`
+    : error instanceof Error
+    ? error.message
+    : "Something went wrong";
+
+  return (
+    <div>
+      <div className="page-header">
+        <h2>Something went wrong</h2>
+      </div>
+      <div className="card" style={{ borderColor: "var(--danger)" }}>
+        <p style={{ color: "var(--danger)", fontWeight: 600, marginBottom: 8 }}>Error</p>
+        <p className="text-sm text-muted" style={{ marginBottom: 16 }}>{message}</p>
+        <Link to="/" className="btn btn-primary" onClick={() => window.location.href = "/"}>Try Again</Link>
       </div>
     </div>
   );

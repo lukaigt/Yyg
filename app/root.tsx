@@ -74,37 +74,25 @@ export function ErrorBoundary() {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <Meta />
-        <Links />
+        <title>VideoForge - Error</title>
+        <style dangerouslySetInnerHTML={{ __html: `
+          body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #0f0f14; color: #e0e0e0; }
+          .err-wrap { max-width: 600px; margin: 80px auto; padding: 0 20px; }
+          .err-card { background: #1a1a24; border: 1px solid #ff4444; border-radius: 12px; padding: 32px; }
+          .err-card h2 { margin: 0 0 12px; color: #fff; }
+          .err-card p { color: #aaa; margin: 0 0 20px; font-size: 14px; word-break: break-word; }
+          .err-btn { display: inline-block; padding: 10px 20px; background: #7c3aed; color: #fff; text-decoration: none; border-radius: 8px; font-size: 14px; margin-right: 10px; border: none; cursor: pointer; }
+          .err-btn-sec { background: #2a2a3a; }
+        `}} />
       </head>
       <body>
-        <div className="app-layout">
-          <aside className="sidebar">
-            <div className="sidebar-brand">
-              <h1>VideoForge</h1>
-            </div>
-            <nav className="sidebar-nav">
-              <Link to="/" className="nav-link">New Project</Link>
-              <Link to="/projects" className="nav-link">Projects</Link>
-              <Link to="/library" className="nav-link">Asset Library</Link>
-              <Link to="/renders" className="nav-link">Renders</Link>
-            </nav>
-          </aside>
-          <main className="main-content">
-            <div className="page-header">
-              <h2>Something went wrong</h2>
-            </div>
-            <div className="card" style={{ borderColor: "var(--danger)" }}>
-              <p style={{ color: "var(--danger)", fontWeight: 600, marginBottom: 8 }}>
-                {isRouteErrorResponse(error) ? `Error ${error.status}` : "Application Error"}
-              </p>
-              <p className="text-sm text-muted" style={{ marginBottom: 16 }}>{message}</p>
-              <div className="flex gap-3">
-                <Link to="/" className="btn btn-primary">Go Home</Link>
-                <button className="btn" onClick={() => window.location.reload()}>Try Again</button>
-              </div>
-            </div>
-          </main>
+        <div className="err-wrap">
+          <div className="err-card">
+            <h2>{isRouteErrorResponse(error) ? `Error ${error.status}` : "Something went wrong"}</h2>
+            <p>{message}</p>
+            <a href="/" className="err-btn">Go Home</a>
+            <button className="err-btn err-btn-sec" onClick={() => window.location.reload()}>Try Again</button>
+          </div>
         </div>
         <Scripts />
       </body>
