@@ -32,8 +32,9 @@ db/                 # SQLite database file
 ## Key Files
 - `app/lib/db.server.ts` - SQLite database (assets, projects, renders tables)
 - `app/lib/openrouter.server.ts` - OpenRouter AI scene planning
-- `app/lib/renderer.server.ts` - Remotion video rendering pipeline with RenderOptions
+- `app/lib/renderer.server.ts` - Remotion video rendering pipeline (dynamically imported, never at module level)
 - `app/lib/tts.server.ts` - TTS voice generation with prosody (rate/pitch) support
+- `app/lib/voices.ts` - Lightweight voice/pitch constants (no heavy deps, safe to import anywhere)
 - `app/lib/autotag.server.ts` - Filename-based auto-tagging system
 - `remotion/VideoComposition.tsx` - Main video composition (music, captions, progress bar)
 - `remotion/Scene.tsx` - Individual scene renderer with subtitle overlay

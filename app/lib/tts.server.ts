@@ -1,6 +1,8 @@
 import path from "path";
 import fs from "fs";
 import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts";
+export { AVAILABLE_VOICES, DEFAULT_VOICE, PITCH_OPTIONS } from "./voices";
+export type { VoiceId, PitchId } from "./voices";
 
 function ensureVoiceoverDir(): string {
   const dir = path.join(process.cwd(), "storage", "voiceover");
@@ -13,27 +15,6 @@ function ensureVoiceoverDir(): string {
   }
   return dir;
 }
-
-export const AVAILABLE_VOICES = [
-  { id: "en-US-GuyNeural", name: "Guy", desc: "Deep male narrator", gender: "male" },
-  { id: "en-US-AndrewMultilingualNeural", name: "Andrew", desc: "Warm male storyteller", gender: "male" },
-  { id: "en-US-BrianMultilingualNeural", name: "Brian", desc: "Clear male presenter", gender: "male" },
-  { id: "en-US-AriaNeural", name: "Aria", desc: "Engaging female narrator", gender: "female" },
-  { id: "en-US-JennyNeural", name: "Jenny", desc: "Friendly female voice", gender: "female" },
-  { id: "en-US-MichelleNeural", name: "Michelle", desc: "Warm female storyteller", gender: "female" },
-] as const;
-
-export const DEFAULT_VOICE = "en-US-AndrewMultilingualNeural";
-
-export type VoiceId = (typeof AVAILABLE_VOICES)[number]["id"];
-
-export const PITCH_OPTIONS = [
-  { id: "low", label: "Low", value: "-2st" },
-  { id: "normal", label: "Normal", value: "+0Hz" },
-  { id: "high", label: "High", value: "+2st" },
-] as const;
-
-export type PitchId = (typeof PITCH_OPTIONS)[number]["id"];
 
 function preprocessText(text: string): string {
   let processed = text;

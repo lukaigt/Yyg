@@ -6,17 +6,22 @@ import { projects as projectsDb, renders as rendersDb, assets as assetsDb } from
 import { v4 as uuidv4 } from "uuid";
 import path from "path";
 import fs from "fs";
-import { renderVideo } from "~/lib/renderer.server";
-import { AVAILABLE_VOICES, DEFAULT_VOICE, PITCH_OPTIONS } from "~/lib/tts.server";
+import { AVAILABLE_VOICES, DEFAULT_VOICE, PITCH_OPTIONS } from "~/lib/voices";
 
 export async function loader({ params }: LoaderFunctionArgs) {
-  const project = projectsDb.getById(params.id!);
-  if (!project) {
-    throw new Response("Project not found", { status: 404 });
+  try {
+    const project = projectsDb.getById(params.id!);
+    if (!project) {
+      throw new Response("Project not found", { status: 404 });
+    }
+    const projectRenders = rendersDb.getByProjectId(params.id!);
+    const allAssets = assetsDb.getAll();
+    return json({ project, renders: projectRenders, assets: allAssets, voices: AVAILABLE_VOICES, defaultVoice: DEFAULT_VOICE, pitchOptions: PITCH_OPTIONS });
+  } catch (err) {
+    if (err instanceof Response) throw err;
+    console.error("Project loader error:", err);
+    throw new Response("Failed to load project", { status: 500 });
   }
-  const projectRenders = rendersDb.getByProjectId(params.id!);
-  const allAssets = assetsDb.getAll();
-  return json({ project, renders: projectRenders, assets: allAssets, voices: AVAILABLE_VOICES, defaultVoice: DEFAULT_VOICE, pitchOptions: PITCH_OPTIONS });
 }
 
 function ensureMusicDir() {
@@ -135,6 +140,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
       show_progress_bar: showProgressBar,
     });
 
+    const { renderVideo } = await import("~/lib/renderer.server");
     renderVideo(renderId, project.id, resolvedPlan, {
       voiceId,
       voiceRate: Math.max(0.8, Math.min(1.2, voiceRate)),

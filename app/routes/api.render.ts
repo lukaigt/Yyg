@@ -2,7 +2,6 @@ import type { ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { v4 as uuidv4 } from "uuid";
 import { projects, renders, assets as assetsDb } from "~/lib/db.server";
-import { renderVideo } from "~/lib/renderer.server";
 
 export async function action({ request }: ActionFunctionArgs) {
   const body = await request.json();
@@ -34,6 +33,7 @@ export async function action({ request }: ActionFunctionArgs) {
     }));
   }
 
+  const { renderVideo } = await import("~/lib/renderer.server");
   renderVideo(renderId, projectId, resolvedPlan, {
     voiceId,
     voiceRate: voiceRate ?? 1.05,
